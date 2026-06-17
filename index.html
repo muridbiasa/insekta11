@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>INSEKTA 11 — Pendataan Pelanggaran MPLS</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  * { font-family: 'Inter', sans-serif; }
+  body { background: #0a0a0a; color: #e5e5e5; min-height: 100vh; }
+  .hide { display: none !important; }
+  .glow-red { background: radial-gradient(circle at 50% 0%, rgba(239,68,68,0.15), transparent 60%); }
+  .glow-blue { background: radial-gradient(circle at 50% 0%, rgba(59,130,246,0.12), transparent 60%); }
+  @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+  .animate-fadeInUp { animation: fadeInUp 0.4s ease-out forwards; }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  .animate-fadeIn { animation: fadeIn 0.3s ease-out forwards; }
+  @keyframes scaleIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+  .animate-scaleIn { animation: scaleIn 0.25s ease-out forwards; }
+  .card-hover { transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); }
+  .card-hover:hover { transform: translateY(-2px); border-color: rgba(239, 68, 68, 0.4); box-shadow: 0 8px 24px rgba(239, 68, 68, 0.1); }
+  .custom-check { position: relative; cursor: pointer; user-select: none; transition: all 0.2s; }
+  .custom-check input { position: absolute; opacity: 0; cursor: pointer; height: 0; width: 0; }
+  .checkmark { width: 22px; height: 22px; border-radius: 6px; border: 2px solid #404040; background: #141414; display: flex; align-items: center; justify-content: center; transition: all 0.2s; flex-shrink: 0; }
+  .checkmark svg { opacity: 0; transform: scale(0.5); transition: all 0.2s; }
+  .custom-check input:checked ~ .checkmark { background: #ef4444; border-color: #ef4444; }
+  .custom-check input:checked ~ .checkmark svg { opacity: 1; transform: scale(1); }
+  .custom-check:hover .checkmark { border-color: #666; }
+  .custom-check.selected { background: rgba(239, 68, 68, 0.08); border-color: rgba(239, 68, 68, 0.3); }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: #0a0a0a; }
+  ::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: #3a3a3a; }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: #ef4444 !important; box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15); }
+  @keyframes pulseDot { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+  .pulse-dot { animation: pulseDot 1.5s ease-in-out infinite; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="sticky top-0 z-40 backdrop-blur-xl bg-[#0a0a0a]/80 border-b border-neutral-900">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <button id="btnBackHeader" class="hide w-9 h-9 rounded-lg bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 flex items-center justify-center transition" aria-label="Back">
+        <i data-lucide="arrow-left" class="w-4 h-4"></i>
+      </button>
+      <div class="flex items-center gap-2">
+        <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-red-500 to-red-700 flex items-center justify-center">
+          <i data-lucide="shield-alert" class="w-4 h-4 text-white"></i>
+        </div>
+        <div>
+          <h1 class="text-sm font-bold leading-tight">INSEKTA 11</h1>
+          <p class="text-[10px] text-neutral-500 leading-tight">Pendataan Pelanggaran</p>
+        </div>
+      </div>
+    </div>
+    <div class="flex items-center gap-2">
+      <div id="statusBadge" class="hide items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 pulse-dot"></span>
+        <span class="text-[11px] font-medium text-emerald-400" id="statusText">Online</span>
+      </div>
+      <div id="userInfoPill" class="hide items-center gap-2 px-3 py-1.5 rounded-lg bg-neutral-900 border border-neutral-800">
+        <i data-lucide="user" class="w-3.5 h-3.5 text-neutral-400"></i>
+        <span class="text-xs font-medium text-neutral-300" id="userInfoText">—</span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main class="max-w-7xl mx-auto px-4 sm:px-6 pb-24">
+
+  <!-- SCREEN: SETUP -->
+  <section id="screenSetup" class="animate-fadeIn">
+    <div class="glow-red pt-10 sm:pt-16 pb-8">
+      <div class="max-w-md mx-auto text-center">
+        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-500/10 border border-red-500/20 mb-4">
+          <i data-lucide="sparkles" class="w-3 h-3 text-red-400"></i>
+          <span class="text-[11px] font-medium text-red-400">Selamat Datang, Fasilitator</span>
+        </div>
+        <h2 class="text-2xl sm:text-3xl font-bold tracking-tight">Siap mencatat <span class="text-red-500">kedisiplinan</span>?</h2>
+        <p class="text-sm text-neutral-400 mt-2">Isi data singkat di bawah untuk mulai menggunakan sistem.</p>
+      </div>
+    </div>
+    <div class="max-w-md mx-auto">
+      <div class="bg-[#141414] border border-neutral-900 rounded-2xl p-6 animate-fadeInUp">
+        <div class="space-y-5">
+          <div>
+            <label class="flex items-center gap-2 text-sm font-semibold mb-2">
+              <i data-lucide="calendar-days" class="w-4 h-4 text-red-500"></i>
+              Pilih Hari MPLS
+            </label>
+            <div class="relative">
+              <select id="inputHari" class="w-full bg-[#0a0a0a] border border-neutral-800 rounded-xl px-4 py-3 text-sm appearance-none cursor-pointer">
+                <option value="Hari 1">Hari 1</option>
+                <option value="Hari 2">Hari 2</option>
+                <option value="Hari 3">Hari 3</option>
+              </select>
+              <i data-lucide="chevron-down" class="w-4 h-4 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-500"></i>
+            </div>
+          </div>
+          <div>
+            <label class="flex items-center gap-2 text-sm font-semibold mb-2">
+              <i data-lucide="user-round" class="w-4 h-4 text-red-500"></i>
+              Nama Fasilitator
+            </label>
+            <input id="inputNama" type="text" placeholder="cth: Kak Andi" class="w-full bg-[#0a0a0a] border border-neutral-800 rounded-xl px-4 py-3 text-sm placeholder:text-neutral-600"/>
+            <p id="errorNama" class="hide text-[11px] text-red-400 mt-1.5 flex items-center gap-1">
+              <i data-lucide="alert-circle" class="w-3 h-3"></i>
+              Nama tidak boleh kosong
+            </p>
+          </div>
+        </div>
+        <button id="btnMulai" class="w-full mt-6 bg-red-600 hover:bg-red-700 text-white font-semibold text-sm py-3 rounded-xl transition flex items-center justify-center gap-2">
+          <span>Mulai Input</span>
+          <i data-lucide="arrow-right" class="w-4 h-4"></i>
+        </button>
+        <p class="text-[11px] text-neutral-600 text-center mt-4">Data disimpan di perangkat Anda (localStorage).</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- SCREEN: MENU KELOMPOK -->
+  <section id="screenMenu" class="hide">
+    <div class="glow-blue pt-8 pb-6">
+      <div class="flex items-end justify-between flex-wrap gap-3">
+        <div>
+          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 mb-3">
+            <i data-lucide="grid-3x3" class="w-3 h-3 text-blue-400"></i>
+            <span class="text-[11px] font-medium text-blue-400">Langkah 1 dari 2</span>
+          </div>
+          <h2 class="text-2xl font-bold tracking-tight">Pilih Kelompok</h2>
+          <p class="text-sm text-neutral-400 mt-1">Terdapat 11 kelompok peserta MPLS.</p>
+        </div>
+        <button id="btnResetSetup" class="text-xs text-neutral-500 hover:text-red-400 flex items-center gap-1 transition">
+          <i data-lucide="refresh-ccw" class="w-3 h-3"></i>
+          Ganti Fasilitator
+        </button>
+      </div>
+    </div>
+    <div id="gridKelompok" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4"></div>
+    <div class="mt-8 bg-[#141414] border border-neutral-900 rounded-xl p-4 flex items-center gap-3">
+      <div class="w-9 h-9 rounded-lg bg-amber-500/10 flex items-center justify-center flex-shrink-0">
+        <i data-lucide="lightbulb" class="w-4 h-4 text-amber-400"></i>
+      </div>
+      <p class="text-xs text-neutral-400 leading-relaxed">
+        <span class="font-semibold text-neutral-300">Tips:</span> Ketuk salah satu kelompok untuk melihat daftar siswa di dalamnya.
+      </p>
+    </div>
+  </section>
+
+  <!-- SCREEN: DAFTAR SISWA -->
+  <section id="screenDaftar" class="hide">
+    <div class="pt-8 pb-6">
+      <div class="flex items-center gap-3 mb-4">
+        <div id="kelompokBadge" class="w-12 h-12 rounded-xl bg-gradient-to-br from-red-500 to-red-700 flex items-center justify-center text-white font-bold text-lg">A</div>
+        <div class="flex-1">
+          <h2 id="kelompokTitle" class="text-xl font-bold tracking-tight">Kelompok A</h2>
+          <p id="kelompokCount" class="text-xs text-neutral-400 mt-0.5">12 siswa</p>
+        </div>
+      </div>
+      <div class="relative mb-4">
+        <i data-lucide="search" class="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-neutral-500"></i>
+        <input id="inputSearch" type="text" placeholder="Cari nama atau nomor absen..." class="w-full bg-[#141414] border border-neutral-900 rounded-xl pl-11 pr-4 py-3 text-sm placeholder:text-neutral-600"/>
+      </div>
+    </div>
+    <div id="listSiswa" class="space-y-2"></div>
+    <p id="emptyState" class="hide text-center py-12 text-sm text-neutral-500">
+      <i data-lucide="search-x" class="w-8 h-8 mx-auto mb-2 text-neutral-700"></i>
+      Tidak ada siswa yang cocok.
+    </p>
+  </section>
+</main>
+
+<!-- MODAL INPUT PELANGGARAN -->
+<div id="modalInput" class="hide fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/70 backdrop-blur-sm animate-fadeIn">
+  <div class="bg-[#141414] border-t sm:border border-neutral-900 rounded-t-3xl sm:rounded-2xl w-full max-w-lg max-h-[92vh] overflow-y-auto animate-scaleIn">
+    <div class="sticky top-0 bg-[#141414] border-b border-neutral-900 px-5 py-4 flex items-center justify-between z-10">
+      <div class="flex items-center gap-2">
+        <div class="w-8 h-8 rounded-lg bg-red-500/10 flex items-center justify-center">
+          <i data-lucide="file-warning" class="w-4 h-4 text-red-400"></i>
+        </div>
+        <div>
+          <h3 class="text-sm font-bold">Input Pelanggaran</h3>
+          <p class="text-[11px] text-neutral-500" id="modalSubtitle">Hari 1</p>
+        </div>
+      </div>
+      <button id="btnCloseModal" class="w-8 h-8 rounded-lg hover:bg-neutral-800 flex items-center justify-center transition">
+        <i data-lucide="x" class="w-4 h-4"></i>
+      </button>
+    </div>
+    <div class="p-5 space-y-5">
+      <div class="bg-[#0a0a0a] border border-neutral-900 rounded-xl p-4">
+        <div class="flex items-start gap-3">
+          <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-neutral-700 to-neutral-800 flex items-center justify-center text-white font-bold flex-shrink-0" id="modalAvatar">A</div>
+          <div class="flex-1 min-w-0">
+            <p class="text-xs text-neutral-500 font-medium" id="modalKelompok">Kelompok A • No. 01</p>
+            <h4 class="font-bold text-base mt-0.5 truncate" id="modalNama">Nama Siswa</h4>
+            <p class="text-[11px] text-neutral-600 mt-1 font-mono" id="modalId">KLP_A_01</p>
+          </div>
+        </div>
+      </div>
+      <div>
+        <label class="flex items-center gap-2 text-sm font-semibold mb-3">
+          <i data-lucide="tags" class="w-4 h-4 text-red-500"></i>
+          Kategori Pelanggaran
+          <span class="text-[10px] text-red-400 font-medium">(pilih minimal 1)</span>
+        </label>
+        <div id="listKategori" class="space-y-2"></div>
+        <p id="errorKategori" class="hide text-[11px] text-red-400 mt-2 flex items-center gap-1">
+          <i data-lucide="alert-circle" class="w-3 h-3"></i>
+          Pilih minimal 1 kategori pelanggaran
+        </p>
+      </div>
+      <div>
+        <label class="flex items-center gap-2 text-sm font-semibold mb-2">
+          <i data-lucide="message-square" class="w-4 h-4 text-neutral-400"></i>
+          Komentar / Catatan
+          <span class="text-[10px] text-neutral-500 font-normal">(opsional)</span>
+        </label>
+        <textarea id="inputKomentar" rows="3" placeholder="Detail tambahan, misal: telat 15 menit..." class="w-full bg-[#0a0a0a] border border-neutral-800 rounded-xl px-4 py-3 text-sm placeholder:text-neutral-600 resize-none"></textarea>
+      </div>
+    </div>
+    <div class="sticky bottom-0 bg-[#141414] border-t border-neutral-900 p-4 flex gap-2">
+      <button id="btnBatalModal" class="flex-1 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-300 font-semibold text-sm py-3 rounded-xl transition">Batal</button>
+      <button id="btnSimpan" class="flex-[1.3] bg-red-600 hover:bg-red-700 text-white font-semibold text-sm py-3 rounded-xl transition flex items-center justify-center gap-2">
+        <i data-lucide="save" class="w-4 h-4"></i>
+        Simpan Pelanggaran
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast" class="hide fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] bg-emerald-500/95 backdrop-blur text-white text-sm font-medium px-5 py-3 rounded-xl shadow-lg flex items-center gap-2 animate-fadeInUp">
+  <i data-lucide="check-circle-2" class="w-4 h-4"></i>
+  <span id="toastMsg">Berhasil disimpan</span>
+</div>
+
+<!-- PENTING: Menggunakan type="module" agar bisa import dari data-siswa.js -->
+<script type="module">
+import { dataSiswa, daftarKelompok } from './js/data-siswa.js';
+
+/* ============================================================
+   KATEGORI PELANGGARAN
+   ============================================================ */
+const KATEGORI = [
+  { id: 'atribut',  label: 'Atribut Ga Lengkap',   icon: 'shirt',          color: 'orange' },
+  { id: 'terlambat',label: 'Terlambat',            icon: 'clock',          color: 'yellow' },
+  { id: 'rambut',   label: 'Rambut Panjang',       icon: 'scissors',       color: 'purple' },
+  { id: 'khusus',   label: 'Pelanggaran Khusus',   icon: 'alert-triangle', color: 'red'    },
+  { id: 'lainnya',  label: 'Lain-lain',            icon: 'more-horizontal',color: 'blue'   }
+];
+
+/* ============================================================
+   STATE & ELEMENTS
+   ============================================================ */
+let state = {
+  hari: null,
+  nama: null,
+  currentKelompok: null,
+  currentSiswa: null,
+  selectedKategori: new Set()
+};
+
+const $ = (id) => document.getElementById(id);
+
+/* ============================================================
+   UTILITIES
+   ============================================================ */
+function show(el) { if (typeof el === 'string') el = $(el); if (el) el.classList.remove('hide'); }
+function hide(el) { if (typeof el === 'string') el = $(el); if (el) el.classList.add('hide'); }
+function showScreen(name) {
+  ['screenSetup','screenMenu','screenDaftar'].forEach(s => hide(s));
+  show(name);
+  if (name === 'screenSetup') hide('btnBackHeader'); else show('btnBackHeader');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  lucide.createIcons();
+}
+function showToast(msg) {
+  $('toastMsg').textContent = msg;
+  show('toast');
+  setTimeout(() => hide('toast'), 2500);
+}
+function uid() { return 'kejadian_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7); }
+
+/* ============================================================
+   LOCAL STORAGE
+   ============================================================ */
+function loadSetup() {
+  const h = localStorage.getItem('fasilitator_hari');
+  const n = localStorage.getItem('fasilitator_nama');
+  if (h && n) {
+    state.hari = h;
+    state.nama = n;
+    $('inputHari').value = h;
+    $('inputNama').value = n;
+    return true;
+  }
+  return false;
+}
+function saveSetup() {
+  localStorage.setItem('fasilitator_hari', state.hari);
+  localStorage.setItem('fasilitator_nama', state.nama);
+}
+function clearSetup() {
+  localStorage.removeItem('fasilitator_hari');
+  localStorage.removeItem('fasilitator_nama');
+}
+function updateUserInfo() {
+  if (state.nama && state.hari) {
+    $('userInfoText').textContent = `${state.nama} • ${state.hari}`;
+    show('userInfoPill'); show('statusBadge');
+  } else { hide('userInfoPill'); hide('statusBadge'); }
+}
+
+/* ============================================================
+   RENDER: MENU KELOMPOK
+   Menggunakan data dari data-siswa.js (daftarKelompok & dataSiswa)
+   ============================================================ */
+function renderMenuKelompok() {
+  const grid = $('gridKelompok');
+  grid.innerHTML = '';
+  
+  // daftarKelompok = ["KELOMPOK A", "KELOMPOK B", ...]
+  daftarKelompok.forEach((namaKelompok, idx) => {
+    const huruf = namaKelompok.split(' ')[1]; // ambil "A", "B", dst
+    const count = dataSiswa[namaKelompok].length; // jumlah siswa di kelompok ini
+    
+    const btn = document.createElement('button');
+    btn.className = 'card-hover bg-[#141414] border border-neutral-900 rounded-2xl p-4 sm:p-5 text-left group';
+    btn.innerHTML = `
+      <div class="flex items-start justify-between mb-4">
+        <div class="w-11 h-11 rounded-xl bg-gradient-to-br from-red-500/20 to-red-700/10 border border-red-500/20 flex items-center justify-center text-red-400 font-bold">
+          ${huruf}
+        </div>
+        <i data-lucide="chevron-right" class="w-4 h-4 text-neutral-600 group-hover:text-red-400 group-hover:translate-x-0.5 transition"></i>
+      </div>
+      <h3 class="font-bold text-sm">${namaKelompok}</h3>
+      <p class="text-[11px] text-neutral-500 mt-0.5 flex items-center gap-1">
+        <i data-lucide="users" class="w-3 h-3"></i>
+        ${count} siswa
+      </p>
+    `;
+    btn.style.animationDelay = `${idx * 40}ms`;
+    btn.classList.add('animate-fadeInUp');
+    btn.style.opacity = '0';
+    btn.onclick = () => openKelompok(namaKelompok);
+    grid.appendChild(btn);
+  });
+  lucide.createIcons();
+}
+
+/* ============================================================
+   RENDER: DAFTAR SISWA
+   Menggunakan data dari data-siswa.js
+   ============================================================ */
+function openKelompok(namaKelompok) {
+  state.currentKelompok = namaKelompok;
+  const huruf = namaKelompok.split(' ')[1];
+  
+  $('kelompokBadge').textContent = huruf;
+  $('kelompokTitle').textContent = namaKelompok;
+  $('kelompokCount').textContent = `${dataSiswa[namaKelompok].length} siswa`;
+  $('inputSearch').value = '';
+  renderListSiswa(dataSiswa[namaKelompok]);
+  showScreen('screenDaftar');
+}
+
+function renderListSiswa(list) {
+  const container = $('listSiswa');
+  container.innerHTML = '';
+  if (list.length === 0) { show('emptyState'); return; }
+  hide('emptyState');
+  
+  list.forEach((s, idx) => {
+    const row = document.createElement('button');
+    row.className = 'card-hover w-full bg-[#141414] border border-neutral-900 rounded-xl p-3.5 flex items-center gap-3 text-left';
+    row.innerHTML = `
+      <div class="w-10 h-10 rounded-lg bg-neutral-900 border border-neutral-800 flex items-center justify-center text-neutral-400 font-bold text-sm flex-shrink-0">
+        ${s.nomor_absen}
+      </div>
+      <div class="flex-1 min-w-0">
+        <h4 class="font-semibold text-sm truncate">${s.nama_lengkap}</h4>
+        <p class="text-[11px] text-neutral-500 font-mono truncate mt-0.5">${s.doc_id}</p>
+      </div>
+      <div class="flex items-center gap-2 flex-shrink-0">
+        <div class="w-2 h-2 rounded-full bg-emerald-500/40"></div>
+        <i data-lucide="chevron-right" class="w-4 h-4 text-neutral-600"></i>
+      </div>
+    `;
+    row.style.animationDelay = `${idx * 25}ms`;
+    row.classList.add('animate-fadeInUp');
+    row.style.opacity = '0';
+    row.onclick = () => openModal(s);
+    container.appendChild(row);
+  });
+  lucide.createIcons();
+}
+
+/* ============================================================
+   RENDER: KATEGORI
+   ============================================================ */
+function renderKategori() {
+  const container = $('listKategori');
+  container.innerHTML = '';
+  KATEGORI.forEach(k => {
+    const checked = state.selectedKategori.has(k.id);
+    const item = document.createElement('label');
+    item.className = `custom-check flex items-center gap-3 bg-[#0a0a0a] border border-neutral-800 rounded-xl px-4 py-3 ${checked ? 'selected' : ''}`;
+    item.innerHTML = `
+      <input type="checkbox" ${checked ? 'checked' : ''} data-id="${k.id}">
+      <div class="w-9 h-9 rounded-lg bg-${k.color}-500/10 border border-${k.color}-500/20 flex items-center justify-center flex-shrink-0">
+        <i data-lucide="${k.icon}" class="w-4 h-4 text-${k.color}-400"></i>
+      </div>
+      <span class="flex-1 text-sm font-medium">${k.label}</span>
+      <div class="checkmark">
+        <i data-lucide="check" class="w-3.5 h-3.5 text-white"></i>
+      </div>
+    `;
+    item.querySelector('input').addEventListener('change', (e) => {
+      if (e.target.checked) state.selectedKategori.add(k.id);
+      else state.selectedKategori.delete(k.id);
+      item.classList.toggle('selected', e.target.checked);
+      hide('errorKategori');
+    });
+    container.appendChild(item);
+  });
+  lucide.createIcons();
+}
+
+/* ============================================================
+   MODAL LOGIC
+   ============================================================ */
+function openModal(siswa) {
+  state.currentSiswa = siswa;
+  state.selectedKategori.clear();
+  $('modalAvatar').textContent = siswa.nama_lengkap.charAt(0).toUpperCase();
+  $('modalNama').textContent = siswa.nama_lengkap;
+  $('modalKelompok').textContent = `${siswa.kelompok} • No. ${siswa.nomor_absen}`;
+  $('modalId').textContent = siswa.doc_id;
+  $('modalSubtitle').textContent = state.hari;
+  $('inputKomentar').value = '';
+  hide('errorKategori');
+  renderKategori();
+  show('modalInput');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeModal() {
+  hide('modalInput');
+  document.body.style.overflow = '';
+}
+
+function simpanPelanggaran() {
+  if (state.selectedKategori.size === 0) { show('errorKategori'); return; }
+  
+  const payload = {
+    id: uid(),
+    doc_id: state.currentSiswa.doc_id,
+    nomor_absen: state.currentSiswa.nomor_absen,
+    nama_lengkap: state.currentSiswa.nama_lengkap,
+    kelompok: state.currentSiswa.kelompok,
+    hari: state.hari,
+    kategori: Array.from(state.selectedKategori).map(id => KATEGORI.find(k => k.id === id).label),
+    komentar: $('inputKomentar').value.trim() || null,
+    waktu_input: new Date().toISOString(),
+    fasilitator: state.nama
+  };
+  
+  console.log('%c[SIMPAN PELANGGARAN]', 'background:#ef4444;color:white;font-weight:bold;padding:2px 6px;border-radius:4px', payload);
+  alert('✅ Pelanggaran berhasil disimpan!\n\nLihat console (F12) untuk payload JSON lengkap.');
+  closeModal();
+  showToast(`Tersimpan untuk ${state.currentSiswa.nama_lengkap}`);
+}
+
+/* ============================================================
+   NAVIGATION
+   ============================================================ */
+function handleBack() {
+  if (!$('modalInput').classList.contains('hide')) { closeModal(); return; }
+  if (!$('screenDaftar').classList.contains('hide')) showScreen('screenMenu');
+  else if (!$('screenMenu').classList.contains('hide')) showScreen('screenSetup');
+}
+
+/* ============================================================
+   EVENT BINDINGS
+   ============================================================ */
+$('btnMulai').addEventListener('click', () => {
+  const nama = $('inputNama').value.trim();
+  const hari = $('inputHari').value;
+  if (!nama) { show('errorNama'); $('inputNama').focus(); return; }
+  hide('errorNama');
+  state.nama = nama;
+  state.hari = hari;
+  saveSetup();
+  updateUserInfo();
+  renderMenuKelompok();
+  showScreen('screenMenu');
+});
+
+$('inputNama').addEventListener('input', () => hide('errorNama'));
+$('btnResetSetup').addEventListener('click', () => {
+  if (confirm('Yakin ingin mengganti fasilitator?')) {
+    clearSetup();
+    state.nama = null;
+    state.hari = null;
+    updateUserInfo();
+    showScreen('screenSetup');
+  }
+});
+$('btnBackHeader').addEventListener('click', handleBack);
+$('inputSearch').addEventListener('input', (e) => {
+  const q = e.target.value.toLowerCase();
+  const filtered = dataSiswa[state.currentKelompok].filter(s =>
+    s.nama_lengkap.toLowerCase().includes(q) ||
+    s.nomor_absen.includes(q) ||
+    s.doc_id.toLowerCase().includes(q)
+  );
+  renderListSiswa(filtered);
+});
+$('btnCloseModal').addEventListener('click', closeModal);
+$('btnBatalModal').addEventListener('click', closeModal);
+$('btnSimpan').addEventListener('click', simpanPelanggaran);
+$('modalInput').addEventListener('click', (e) => { if (e.target.id === 'modalInput') closeModal(); });
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !$('modalInput').classList.contains('hide')) closeModal();
+});
+
+/* ============================================================
+   INIT
+   ============================================================ */
+(function init() {
+  lucide.createIcons();
+  // Log untuk debug - pastikan data ter-load
+  console.log('✅ Data Siswa loaded:', Object.keys(dataSiswa));
+  console.log('✅ Total siswa:', Object.values(dataSiswa).reduce((sum, arr) => sum + arr.length, 0));
+  
+  if (loadSetup()) {
+    updateUserInfo();
+    renderMenuKelompok();
+    showScreen('screenMenu');
+  } else {
+    showScreen('screenSetup');
+  }
+})();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,214 @@
+// js/komdis.js
+import { db } from './firebase-config.js';
+import { collection, query, where, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const gatekeeper = document.getElementById('gatekeeper');
+const dashboardContainer = document.getElementById('dashboard-container');
+const btnLogin = document.getElementById('btn-login');
+const inputPassword = document.getElementById('input-password');
+const errorMsg = document.getElementById('error-msg');
+
+const gridCards = document.getElementById('grid-cards');
+const btnExport = document.getElementById('btn-export');
+const statSiswa = document.getElementById('stat-siswa');
+const statKejadian = document.getElementById('stat-kejadian');
+
+const modalDetail = document.getElementById('modal-detail');
+const detailNama = document.getElementById('detail-nama');
+const detailTimeline = document.getElementById('detail-timeline');
+const btnTutupDetail = document.getElementById('btn-tutup-detail');
+
+let allData = [];
+let currentFilter = "Semua";
+
+// 1. Gatekeeper Logic
+btnLogin.addEventListener('click', () => {
+    if (inputPassword.value === 'admin123') {
+        gatekeeper.classList.add('hidden');
+        dashboardContainer.classList.remove('hidden');
+        initDashboard();
+    } else {
+        errorMsg.classList.remove('hidden');
+        inputPassword.value = '';
+    }
+});
+
+inputPassword.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') btnLogin.click();
+});
+
+// 2. Dashboard Initialization & Real-time Listener
+function initDashboard() {
+    // Query hanya siswa yang total_pelanggarannya > 0
+    const q = query(collection(db, "rekap_pelanggaran"), where("total_pelanggaran", ">", 0));
+    
+    onSnapshot(q, (snapshot) => {
+        allData = [];
+        snapshot.forEach((doc) => {
+            allData.push({ id: doc.id, ...doc.data() });
+        });
+        
+        // Sort by Kelompok dan Nomor Absen
+        allData.sort((a, b) => {
+            if (a.kelompok === b.kelompok) {
+                return a.nomor_absen.localeCompare(b.nomor_absen);
+            }
+            return a.kelompok.localeCompare(b.kelompok);
+        });
+        renderDashboard();
+    }, (error) => {
+        console.error("Error listening to data: ", error);
+        gridCards.innerHTML = '<p class="text-red-400 col-span-full text-center py-10">Gagal memuat data. Periksa Firebase Rules atau koneksi.</p>';
+    });
+
+    // Filter Listeners
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            document.querySelectorAll('.filter-btn').forEach(b => {
+                b.classList.remove('bg-blue-600');
+                b.classList.add('bg-gray-700');
+            });
+            e.target.classList.remove('bg-gray-700');
+            e.target.classList.add('bg-blue-600');
+            currentFilter = e.target.dataset.filter;
+            renderDashboard();
+        });
+    });
+
+    btnExport.addEventListener('click', exportCSV);
+    btnTutupDetail.addEventListener('click', () => modalDetail.classList.remove('active'));
+    modalDetail.addEventListener('click', (e) => {
+        if (e.target === modalDetail) modalDetail.classList.remove('active');
+    });
+}
+
+// 3. Render Dashboard
+function renderDashboard() {
+    gridCards.innerHTML = '';
+    
+    const filteredData = allData.filter(s => {
+        if (currentFilter === "Semua") return true;
+        const riwayat = s.riwayat || {};
+        return Object.values(riwayat).some(r => r.hari === currentFilter);
+    });
+
+    // Update Stats
+    statSiswa.textContent = filteredData.length;
+    let totalKejadian = 0;
+    filteredData.forEach(s => {
+        const riwayat = s.riwayat || {};
+        const kejadian = Object.values(riwayat).filter(r => currentFilter === "Semua" || r.hari === currentFilter);
+        totalKejadian += kejadian.length;
+    });
+    statKejadian.textContent = totalKejadian;
+
+    if (filteredData.length === 0) {
+        gridCards.innerHTML = '<p class="text-gray-500 col-span-full text-center py-10">Belum ada data pelanggaran. Silakan input dari halaman Fasilitator.</p>';
+        return;
+    }
+
+    filteredData.forEach(s => {
+        const riwayat = s.riwayat || {};
+        const kejadianCount = Object.values(riwayat).filter(r => currentFilter === "Semua" || r.hari === currentFilter).length;
+        
+        const card = document.createElement('div');
+        card.className = 'bg-gray-800 p-5 rounded-xl border border-gray-700 hover:border-red-500 transition cursor-pointer shadow-lg';
+        card.innerHTML = `
+            <div class="flex justify-between items-start mb-3">
+                <div>
+                    <h3 class="font-bold text-lg text-white">${s.nama_lengkap}</h3>
+                    <p class="text-sm text-gray-400">${s.kelompok} • No. ${s.nomor_absen}</p>
+                </div>
+                <span class="bg-red-500 text-white text-sm font-bold px-3 py-1 rounded-full">${kejadianCount}</span>
+            </div>
+            <div class="flex flex-wrap gap-2 mt-4">
+                ${getKategoriBadges(s, currentFilter)}
+            </div>
+        `;
+        card.onclick = () => showDetail(s);
+        gridCards.appendChild(card);
+    });
+}
+
+function getKategoriBadges(siswa, filter) {
+    const riwayat = siswa.riwayat || {};
+    const kejadian = Object.values(riwayat).filter(r => filter === "Semua" || r.hari === filter);
+    const kategoriSet = new Set();
+    kejadian.forEach(k => k.kategori.forEach(cat => kategoriSet.add(cat)));
+    
+    return Array.from(kategoriSet).map(cat => 
+        `<span class="bg-gray-700 text-gray-300 text-xs px-2 py-1 rounded">${cat}</span>`
+    ).join('');
+}
+
+// 4. Show Detail Modal
+function showDetail(s) {
+    detailNama.textContent = `${s.nama_lengkap} (${s.kelompok})`;
+    detailTimeline.innerHTML = '';
+    
+    const riwayat = s.riwayat || {};
+    let riwayatArray = Object.entries(riwayat).map(([id, data]) => ({ id, ...data }));
+    
+    if (currentFilter !== "Semua") {
+        riwayatArray = riwayatArray.filter(r => r.hari === currentFilter);
+    }
+
+    // Sort by waktu_input descending (terbaru di atas)
+    riwayatArray.sort((a, b) => new Date(b.waktu_input) - new Date(a.waktu_input));
+
+    if (riwayatArray.length === 0) {
+        detailTimeline.innerHTML = '<p class="text-gray-500 text-center">Tidak ada riwayat.</p>';
+    } else {
+        riwayatArray.forEach(r => {
+            const item = document.createElement('div');
+            item.className = 'bg-gray-900 p-4 rounded-lg border-l-4 border-red-500';
+            const tgl = new Date(r.waktu_input).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+            item.innerHTML = `
+                <div class="flex justify-between items-center mb-2">
+                    <span class="font-bold text-blue-400">${r.hari}</span>
+                    <span class="text-xs text-gray-500">${tgl}</span>
+                </div>
+                <div class="flex flex-wrap gap-2 mb-2">
+                    ${r.kategori.map(cat => `<span class="bg-red-900 text-red-200 text-xs px-2 py-1 rounded">${cat}</span>`).join('')}
+                </div>
+                <p class="text-sm text-gray-300 italic mb-2">"${r.komentar || 'Tidak ada komentar'}"</p>
+                <p class="text-xs text-gray-500">Dicatat oleh: ${r.fasilitator}</p>
+            `;
+            detailTimeline.appendChild(item);
+        });
+    }
+    modalDetail.classList.add('active');
+}
+
+// 5. Export CSV
+function exportCSV() {
+    if (allData.length === 0) return alert('Tidak ada data untuk diekspor.');
+    
+    const BOM = "\uFEFF"; // UTF-8 BOM agar karakter Indonesia terbaca di Excel
+    const headers = ["No Absen", "Nama Lengkap", "Kelompok", "Total Pelanggaran", "Pelanggaran Hari 1", "Pelanggaran Hari 2", "Pelanggaran Hari 3"];
+    
+    const rows = allData.map(s => {
+        const riwayat = Object.values(s.riwayat || {});
+        
+        const h1 = riwayat.filter(r => r.hari === "Hari 1").map(r => r.kategori.join(' + ')).join(' | ');
+        const h2 = riwayat.filter(r => r.hari === "Hari 2").map(r => r.kategori.join(' + ')).join(' | ');
+        const h3 = riwayat.filter(r => r.hari === "Hari 3").map(r => r.kategori.join(' + ')).join(' | ');
+        
+        return [
+            s.nomor_absen, 
+            s.nama_lengkap, 
+            s.kelompok, 
+            s.total_pelanggaran, 
+            h1, 
+            h2, 
+            h3
+        ].map(val => `"${String(val).replace(/"/g, '""')}"`).join(',');
+    });
+
+    const csvContent = BOM + headers.join(',') + '\n' + rows.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `Rekap_Pelanggaran_INSEKTA11_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+}

@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Komdis - INSEKTA 11</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .modal { display: none; }
+        .modal.active { display: flex; }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #111827; }
+        ::-webkit-scrollbar-thumb { background: #374151; border-radius: 4px; }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-200 min-h-screen">
+    
+    <!-- Gatekeeper (Layar Password) -->
+    <div id="gatekeeper" class="fixed inset-0 bg-gray-900 flex items-center justify-center p-4 z-50">
+        <div class="bg-gray-800 p-8 rounded-xl shadow-2xl border border-gray-700 w-full max-w-sm">
+            <h2 class="text-2xl font-bold text-center mb-2 text-red-400">Akses Komdis</h2>
+            <p class="text-center text-gray-400 mb-6 text-sm">Masukkan password untuk melanjutkan</p>
+            <input type="password" id="input-password" placeholder="Password" class="w-full p-3 mb-4 bg-gray-700 rounded-lg text-white border border-gray-600 focus:outline-none focus:ring-2 focus:ring-red-500">
+            <button id="btn-login" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-lg transition">Masuk</button>
+            <p id="error-msg" class="text-red-400 text-sm text-center mt-3 hidden">Password salah!</p>
+        </div>
+    </div>
+
+    <!-- Dashboard Container -->
+    <div id="dashboard-container" class="hidden">
+        <header class="bg-gray-800 border-b border-gray-700 sticky top-0 z-40">
+            <div class="max-w-7xl mx-auto px-4 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+                <h1 class="text-xl font-bold text-white">📊 Dashboard Rekap Pelanggaran</h1>
+                <button id="btn-export" class="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg flex items-center gap-2 transition">
+                    <span>⬇️</span> Export CSV
+                </button>
+            </div>
+        </header>
+
+        <main class="max-w-7xl mx-auto px-4 py-6">
+            <!-- Filter Tabs -->
+            <div class="flex flex-wrap gap-2 mb-6">
+                <button class="filter-btn bg-blue-600 text-white px-4 py-2 rounded-lg font-medium transition" data-filter="Semua">Semua Hari</button>
+                <button class="filter-btn bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg font-medium transition" data-filter="Hari 1">Hari 1</button>
+                <button class="filter-btn bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg font-medium transition" data-filter="Hari 2">Hari 2</button>
+                <button class="filter-btn bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg font-medium transition" data-filter="Hari 3">Hari 3</button>
+            </div>
+
+            <!-- Stats -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <div class="bg-gray-800 p-4 rounded-lg border border-gray-700">
+                    <p class="text-gray-400 text-sm">Total Siswa Melanggar</p>
+                    <p id="stat-siswa" class="text-2xl font-bold text-white">0</p>
+                </div>
+                <div class="bg-gray-800 p-4 rounded-lg border border-gray-700">
+                    <p class="text-gray-400 text-sm">Total Kejadian</p>
+                    <p id="stat-kejadian" class="text-2xl font-bold text-red-400">0</p>
+                </div>
+            </div>
+
+            <!-- Cards Grid -->
+            <div id="grid-cards" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <p class="text-gray-500 col-span-full text-center py-10">Memuat data...</p>
+            </div>
+        </main>
+    </div>
+
+    <!-- Detail Modal -->
+    <div id="modal-detail" class="modal fixed inset-0 bg-black bg-opacity-70 items-center justify-center p-4 z-50">
+        <div class="bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg border border-gray-700 max-h-[90vh] flex flex-col">
+            <div class="p-6 border-b border-gray-700 flex justify-between items-center">
+                <h3 class="text-xl font-bold text-white" id="detail-nama"></h3>
+                <button id="btn-tutup-detail" class="text-gray-400 hover:text-white text-2xl">&times;</button>
+            </div>
+            <div id="detail-timeline" class="p-6 overflow-y-auto space-y-4">
+                <!-- Timeline items will be injected here -->
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="js/komdis.js"></script>
+</body>
+</html>
