@@ -241,7 +241,11 @@
 
 <!-- PENTING: Menggunakan type="module" agar bisa import dari data-siswa.js -->
 <script type="module">
-import { dataSiswa, daftarKelompok } from '/js/data-siswa.js';
+    // Kita import sesuai dengan nama variabel yang diekspor di data-siswa.js
+    import { daftarSiswa, daftarKelompok } from './js/data-siswa.js';
+
+    // Sekarang variabel ini sudah tersedia dan tidak akan undefined
+    console.log("Data Siswa Berhasil Dimuat:", daftarSiswa);
 
 /* ============================================================
    KATEGORI PELANGGARAN
