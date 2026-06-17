@@ -240,17 +240,24 @@
 </div>
 
 <!-- PENTING: Menggunakan type="module" agar bisa import dari data-siswa.js -->
- <script type="module">
-import { daftarSiswa } from './js/data-siswa.js';
+<script type="module">
+  // 1. IMPORT DATA
+  import { daftarSiswa } from './js/data-siswa.js';
+  
+  // 2. ADAPTER (Jembatan)
+  // Membuat dataSiswa agar kode lama kamu tidak error
+  window.dataSiswa = daftarSiswa.reduce((acc, siswa) => {
+    if (!acc[siswa.kelompok]) {
+      acc[siswa.kelompok] = [];
+    }
+    acc[siswa.kelompok].push(siswa);
+    return acc;
+  }, {});
 
-// Tambahkan variabel pembantu ini agar kode di bawahnya tidak error
-const daftarKelompok = ["KELOMPOK A", "KELOMPOK B", "KELOMPOK C", "KELOMPOK D", "KELOMPOK E", "KELOMPOK F", "KELOMPOK G", "KELOMPOK H", "KELOMPOK I", "KELOMPOK J", "KELOMPOK K"];
-
-// Ubah dataSiswa agar tetap menjadi Object Map (untuk kompatibilitas kode lama kamu)
-const dataSiswa = {};
-daftarKelompok.forEach(k => {
-    dataSiswa[k] = daftarSiswa.filter(s => s.kelompok === k);
-});
+  // 3. Pastikan juga daftarKelompok tersedia (Jika belum ada di data-siswa.js, buat manual di sini)
+  window.daftarKelompok = Object.keys(window.dataSiswa);
+  
+  console.log("✅ Adapter Data Aktif:", window.dataSiswa);
 
 /* ============================================================
    KATEGORI PELANGGARAN
