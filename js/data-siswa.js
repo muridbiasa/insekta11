@@ -1,8 +1,11 @@
+// ============================================================
 // js/data-siswa.js
+// Data 127 siswa dalam bentuk FLAT ARRAY OF OBJECTS
+// ============================================================
 
-// 120+ Nama Asli dari Excel FORMULIR PENDAFTARAN PANITIA SHC 2026
-const namaSiswaAsli = [
-    "Cindy Aurelia Renata Kurniawan", "Nathanael Axel Sutanto", "Evangeline Gwen Hebertson", 
+// 30 Nama Asli dari Excel
+const namaAsli = [
+  "Cindy Aurelia Renata Kurniawan", "Nathanael Axel Sutanto", "Evangeline Gwen Hebertson", 
     "Laura Quinsha Sachi Rosari", "Kezia Raissa Santoso", "Fiorentina Agustine Wijaya", 
     "Ofira Maisie Setiawan", "Michelle Bellina Anggrianto", "Valencia Michelle Aurellia Christie", 
     "Jocelyne Callista Wibowo", "Alexandra Shalom Putri Daniel", "Yosua Pandu Wijaya Putra", 
@@ -44,17 +47,17 @@ const namaSiswaAsli = [
     "Gwendolyn Ananda The"
 ];
 
-// Genapkan jadi 127 siswa
-const semuaNama = [...namaSiswaAsli];
-while (semuaNama.length < 127) {
-    semuaNama.push(`Siswa Dummy ${semuaNama.length + 1}`);
+// Genapkan jadi 127 nama (30 asli + 97 dummy)
+const semuaNama = [...namaAsli];
+for (let i = semuaNama.length + 1; semuaNama.length < 127; i++) {
+  semuaNama.push(`Siswa Dummy ${i}`);
 }
 
 // Konfigurasi 11 Kelompok (A - K)
 const kelompokList = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K'];
 
 // Distribusi: 6 kelompok pertama dapat 12 siswa, 5 kelompok terakhir dapat 11 siswa
-// Total: (6 × 12) + (5 × 11) = 72 + 55 = 127 siswa
+// Total: (6 * 12) + (5 * 11) = 72 + 55 = 127 siswa
 const distribusi = [12, 12, 12, 12, 12, 12, 11, 11, 11, 11, 11];
 
 // Bangun FLAT ARRAY OF OBJECTS
@@ -62,22 +65,20 @@ export const daftarSiswa = [];
 let siswaIndex = 0;
 
 kelompokList.forEach((huruf, ki) => {
-    const namaKelompok = `KELOMPOK ${huruf}`;
-    const jumlah = distribusi[ki];
+  const namaKelompok = `KELOMPOK ${huruf}`;
+  const jumlah = distribusi[ki];
+  
+  for (let i = 1; i <= jumlah; i++) {
+    const nomorAbsen = String(i).padStart(2, '0');
     
-    for (let i = 1; i <= jumlah; i++) {
-        const nomorAbsen = String(i).padStart(2, '0');
-        
-        daftarSiswa.push({
-            id: `KLP_${huruf}_${nomorAbsen}`,
-            nomor_absen: nomorAbsen,
-            nama_lengkap: semuaNama[siswaIndex],
-            kelompok: namaKelompok
-        });
-        
-        siswaIndex++;
-    }
+    // Push object ke dalam array flat
+    daftarSiswa.push({
+      id: `KLP_${huruf}_${nomorAbsen}`,
+      nomor_absen: nomorAbsen,
+      nama_lengkap: semuaNama[siswaIndex],
+      kelompok: namaKelompok
+    });
+    
+    siswaIndex++;
+  }
 });
-
-// Helper: ambil daftar nama kelompok (unique)
-export const daftarKelompok = [...new Set(daftarSiswa.map(s => s.kelompok))].sort();
