@@ -78,7 +78,33 @@
             </div>
         </div>
     </div>
+<script type="module">
+  // === ADAPTER: Convert flat array (daftarSiswa) → object map (dataSiswa)
+  // Import daftarSiswa dari data-siswa.js
+  import { daftarSiswa } from './js/data-siswa.js';
 
-    <script type="module" src="js/komdis.js"></script>
+  // Bangun struktur dataSiswa sesuai format yang diharapkan oleh komdis.js
+  // Format: { "KELOMPOK A": [{ nomor_absen, nama_lengkap, kelompok, doc_id }, ...], ... }
+  const dataSiswaMap = {};
+
+  daftarSiswa.forEach(siswa => {
+    const kelompokKey = siswa.kelompok; // e.g., "KELOMPOK A"
+    if (!dataSiswaMap[kelompokKey]) {
+      dataSiswaMap[kelompokKey] = [];
+    }
+    dataSiswaMap[kelompokKey].push({
+      nomor_absen: siswa.nomor_absen,
+      nama_lengkap: siswa.nama_lengkap.trim(),
+      kelompok: siswa.kelompok,
+      doc_id: siswa.id // karena di data-siswa.js, id = KLP_X_XX
+    });
+  });
+
+  // Expose globally for komdis.js to access (even though module-scoped, we attach to window)
+  window.dataSiswa = dataSiswaMap;
+
+  // Optional: debug check
+  console.log('[Dashboard Adapter] dataSiswa built with', Object.keys(dataSiswaMap).length, 'kelompok');
+</script>
 </body>
 </html>
