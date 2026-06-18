@@ -1,7 +1,7 @@
 // js/komdis.js
 import { db } from './firebase-config.js';
 import { daftarSiswa } from './data-siswa.js';
-import { collection, query, where, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { collection, query, where, onSnapshot, doc, updateDoc, deleteField, increment, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // ============================================================
 // ADAPTER — konversi flat array → object map untuk renderUI
@@ -31,9 +31,13 @@ const modalDetail = document.getElementById('modal-detail');
 const detailNama = document.getElementById('detail-nama');
 const detailTimeline = document.getElementById('detail-timeline');
 const btnTutupDetail = document.getElementById('btn-tutup-detail');
+const modalRevoke = document.getElementById('modal-revoke');
+const btnBatalRevoke = document.getElementById('btn-batal-revoke');
+const btnKonfirmasiRevoke = document.getElementById('btn-konfirmasi-revoke');
 
 let allData = [];
 let currentSearch = "";
+let currentRevokeTarget = null;
 const selectedHari = new Set();
 const selectedKategori = new Set();
 const selectedKelompok = new Set();
@@ -102,8 +106,14 @@ function initDashboard() {
 
     btnExport.addEventListener('click', exportExcel);
     btnTutupDetail.addEventListener('click', () => modalDetail.classList.remove('active'));
+    btnBatalRevoke.addEventListener('click', closeRevokeModal);
+    btnKonfirmasiRevoke.addEventListener('click', confirmRevokePelanggaran);
+    detailTimeline.addEventListener('click', handleTimelineClick);
     modalDetail.addEventListener('click', (e) => {
         if (e.target === modalDetail) modalDetail.classList.remove('active');
+    });
+    modalRevoke.addEventListener('click', (e) => {
+        if (e.target === modalRevoke) closeRevokeModal();
     });
 }
 
@@ -230,6 +240,7 @@ function getKategoriBadges(siswa) {
 // 4. Show Detail Modal
 function showDetail(s) {
     detailNama.textContent = `${s.nama_lengkap} (${s.kelompok})`;
+    detailTimeline.dataset.siswaId = s.id;
     detailTimeline.innerHTML = '';
     const riwayat = s.riwayat || {};
     let riwayatArray = Object.entries(riwayat)
@@ -248,9 +259,14 @@ function showDetail(s) {
             const tgl = new Date(r.waktu_input).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
             const kategori = Array.isArray(r.kategori) ? r.kategori : [];
             item.innerHTML = `
-                <div class="flex justify-between items-center mb-2">
-                    <span class="font-bold text-blue-400">${escapeHtml(r.hari)}</span>
-                    <span class="text-xs text-gray-500">${tgl}</span>
+                <div class="flex justify-between items-start gap-3 mb-2">
+                    <div>
+                        <span class="font-bold text-blue-400">${escapeHtml(r.hari)}</span>
+                        <span class="text-xs text-gray-500 block mt-1">${tgl}</span>
+                    </div>
+                    <button type="button" class="revoke-btn shrink-0 text-xs font-bold text-red-300 hover:text-red-100 hover:bg-red-900/50 px-3 py-1.5 rounded-lg transition" data-kejadian-id="${escapeHtml(r.id)}">
+                        Revoke
+                    </button>
                 </div>
                 <div class="flex flex-wrap gap-2 mb-2">
                     ${kategori.map(cat => `<span class="bg-red-900 text-red-200 text-xs px-2 py-1 rounded">${escapeHtml(cat)}</span>`).join('')}
@@ -262,6 +278,96 @@ function showDetail(s) {
         });
     }
     modalDetail.classList.add('active');
+}
+
+function handleTimelineClick(e) {
+    const revokeButton = e.target.closest('.revoke-btn');
+    if (!revokeButton) return;
+
+    openRevokeModal(detailTimeline.dataset.siswaId, revokeButton.dataset.kejadianId);
+}
+
+function openRevokeModal(siswaId, kejadianId) {
+    if (!siswaId || !kejadianId) return;
+
+    currentRevokeTarget = { siswaId, kejadianId };
+    modalRevoke.classList.remove('hidden');
+}
+
+function closeRevokeModal() {
+    currentRevokeTarget = null;
+    modalRevoke.classList.add('hidden');
+}
+
+async function confirmRevokePelanggaran() {
+    if (!currentRevokeTarget) return;
+
+    const { siswaId, kejadianId } = currentRevokeTarget;
+    const siswaIndex = allData.findIndex(s => s.id === siswaId);
+    const siswa = allData[siswaIndex];
+
+    if (!siswa) {
+        closeRevokeModal();
+        return;
+    }
+
+    const totalPelanggaran = Number(siswa.total_pelanggaran || 0);
+    const docRef = doc(db, "rekap_pelanggaran", siswaId);
+
+    try {
+        btnKonfirmasiRevoke.disabled = true;
+        btnKonfirmasiRevoke.classList.add('opacity-50', 'cursor-not-allowed');
+
+        if (totalPelanggaran <= 1) {
+            await deleteDoc(docRef);
+        } else {
+            await updateDoc(docRef, {
+                [`riwayat.${kejadianId}`]: deleteField(),
+                total_pelanggaran: increment(-1)
+            });
+        }
+
+        removeLocalRevokeRecord(siswaId, kejadianId);
+        updateLocalDataAfterRevoke(siswaIndex, totalPelanggaran, kejadianId);
+        closeRevokeModal();
+        renderDashboard();
+
+        const updatedSiswa = allData.find(s => s.id === siswaId);
+        if (updatedSiswa && getFilteredRiwayat(updatedSiswa).length > 0) {
+            showDetail(updatedSiswa);
+        } else {
+            modalDetail.classList.remove('active');
+        }
+    } catch (error) {
+        console.error("[Firestore] Error revoking violation:", error);
+        alert('Gagal menghapus pelanggaran. Coba lagi.');
+    } finally {
+        btnKonfirmasiRevoke.disabled = false;
+        btnKonfirmasiRevoke.classList.remove('opacity-50', 'cursor-not-allowed');
+    }
+}
+
+function updateLocalDataAfterRevoke(siswaIndex, totalPelanggaran, kejadianId) {
+    if (siswaIndex === -1) return;
+
+    if (totalPelanggaran <= 1) {
+        allData.splice(siswaIndex, 1);
+        return;
+    }
+
+    const siswa = allData[siswaIndex];
+    if (siswa.riwayat) delete siswa.riwayat[kejadianId];
+    siswa.total_pelanggaran = Math.max(0, totalPelanggaran - 1);
+}
+
+function removeLocalRevokeRecord(siswaId, kejadianId) {
+    try {
+        const riwayatLokal = JSON.parse(localStorage.getItem('riwayat_input') || '[]');
+        const filteredRiwayat = riwayatLokal.filter(item => !(item.doc_id === siswaId && item.kejadian_id === kejadianId));
+        localStorage.setItem('riwayat_input', JSON.stringify(filteredRiwayat));
+    } catch (error) {
+        console.warn("[LocalStorage] Gagal membersihkan riwayat lokal:", error);
+    }
 }
 
 // 5. Export Excel
