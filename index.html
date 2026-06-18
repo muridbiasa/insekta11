@@ -36,6 +36,9 @@
   input:focus, select:focus, textarea:focus { outline: none; border-color: #ef4444 !important; box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15); }
   @keyframes pulseDot { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
   .pulse-dot { animation: pulseDot 1.5s ease-in-out infinite; }
+  /* Loading spinner */
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spinner { width: 18px; height: 18px; border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 0.7s linear infinite; }
 </style>
 </head>
 <body>
@@ -66,6 +69,10 @@
         <i data-lucide="user" class="w-3.5 h-3.5 text-neutral-400"></i>
         <span class="text-xs font-medium text-neutral-300" id="userInfoText">—</span>
       </div>
+      <!-- Tombol Riwayat Input -->
+      <button id="btnRiwayat" class="hide w-9 h-9 rounded-lg bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 flex items-center justify-center transition" title="Riwayat Input Saya">
+        <i data-lucide="history" class="w-4 h-4 text-neutral-400"></i>
+      </button>
     </div>
   </div>
 </header>
@@ -226,342 +233,419 @@
     <div class="sticky bottom-0 bg-[#141414] border-t border-neutral-900 p-4 flex gap-2">
       <button id="btnBatalModal" class="flex-1 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-300 font-semibold text-sm py-3 rounded-xl transition">Batal</button>
       <button id="btnSimpan" class="flex-[1.3] bg-red-600 hover:bg-red-700 text-white font-semibold text-sm py-3 rounded-xl transition flex items-center justify-center gap-2">
-        <i data-lucide="save" class="w-4 h-4"></i>
-        Simpan Pelanggaran
+        <i data-lucide="save" class="w-4 h-4" id="iconSimpan"></i>
+        <span id="labelSimpan">Simpan Pelanggaran</span>
       </button>
     </div>
   </div>
 </div>
 
+<!-- MODAL RIWAYAT INPUT -->
+<div id="modalRiwayat" class="hide fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/70 backdrop-blur-sm animate-fadeIn">
+  <div class="bg-[#141414] border-t sm:border border-neutral-900 rounded-t-3xl sm:rounded-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto animate-scaleIn">
+    <div class="sticky top-0 bg-[#141414] border-b border-neutral-900 px-5 py-4 flex items-center justify-between z-10">
+      <div class="flex items-center gap-2">
+        <i data-lucide="history" class="w-4 h-4 text-blue-400"></i>
+        <h3 class="text-sm font-bold">Riwayat Input Saya</h3>
+      </div>
+      <button id="btnCloseRiwayat" class="w-8 h-8 rounded-lg hover:bg-neutral-800 flex items-center justify-center transition">
+        <i data-lucide="x" class="w-4 h-4"></i>
+      </button>
+    </div>
+    <div id="listRiwayat" class="p-4 space-y-3">
+      <p class="text-center text-neutral-500 text-sm py-8">Belum ada riwayat input.</p>
+    </div>
+  </div>
+</div>
+
 <!-- TOAST -->
-<div id="toast" class="hide fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] bg-emerald-500/95 backdrop-blur text-white text-sm font-medium px-5 py-3 rounded-xl shadow-lg flex items-center gap-2 animate-fadeInUp">
-  <i data-lucide="check-circle-2" class="w-4 h-4"></i>
+<div id="toast" class="hide fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] text-white text-sm font-medium px-5 py-3 rounded-xl shadow-lg flex items-center gap-2 animate-fadeInUp">
+  <i data-lucide="check-circle-2" class="w-4 h-4" id="toastIcon"></i>
   <span id="toastMsg">Berhasil disimpan</span>
 </div>
 
-<!-- PENTING: Menggunakan type="module" agar bisa import dari data-siswa.js -->
+<!-- ============================================================
+     SCRIPT UTAMA — type="module" wajib agar import bisa jalan
+     ============================================================ -->
 <script type="module">
-  // 1. IMPORT DATA
+  // ── IMPORTS ──────────────────────────────────────────────────
   import { daftarSiswa } from './js/data-siswa.js';
-  
-  // 2. ADAPTER (Jembatan)
-  // Membuat dataSiswa agar kode lama kamu tidak error
-  window.dataSiswa = daftarSiswa.reduce((acc, siswa) => {
-    if (!acc[siswa.kelompok]) {
-      acc[siswa.kelompok] = [];
-    }
-    acc[siswa.kelompok].push(siswa);
+  import { db } from './js/firebase-config.js';
+  import {
+    doc, setDoc, getDoc, updateDoc, increment, deleteField
+  } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+  // ── ADAPTER: flat array → object map ─────────────────────────
+  // Dibutuhkan oleh fungsi render yang memakai dataSiswa[namaKelompok]
+  const dataSiswa = daftarSiswa.reduce((acc, s) => {
+    if (!acc[s.kelompok]) acc[s.kelompok] = [];
+    acc[s.kelompok].push(s);
     return acc;
   }, {});
+  const daftarKelompok = Object.keys(dataSiswa).sort();
 
-  // 3. Pastikan juga daftarKelompok tersedia (Jika belum ada di data-siswa.js, buat manual di sini)
-  window.daftarKelompok = Object.keys(window.dataSiswa);
-  
-  console.log("✅ Adapter Data Aktif:", window.dataSiswa);
+  // ── KATEGORI PELANGGARAN ──────────────────────────────────────
+  const KATEGORI = [
+    { id: 'atribut',   label: 'Atribut Tidak Lengkap', icon: 'shirt',          color: 'orange' },
+    { id: 'terlambat', label: 'Terlambat',              icon: 'clock',          color: 'yellow' },
+    { id: 'rambut',    label: 'Rambut Panjang',         icon: 'scissors',       color: 'purple' },
+    { id: 'khusus',    label: 'Pelanggaran Khusus',     icon: 'alert-triangle', color: 'red'    },
+    { id: 'lainnya',   label: 'Lain-lain',              icon: 'more-horizontal',color: 'blue'   }
+  ];
 
-/* ============================================================
-   KATEGORI PELANGGARAN
-   ============================================================ */
-const KATEGORI = [
-  { id: 'atribut',  label: 'Atribut Ga Lengkap',   icon: 'shirt',          color: 'orange' },
-  { id: 'terlambat',label: 'Terlambat',            icon: 'clock',          color: 'yellow' },
-  { id: 'rambut',   label: 'Rambut Panjang',       icon: 'scissors',       color: 'purple' },
-  { id: 'khusus',   label: 'Pelanggaran Khusus',   icon: 'alert-triangle', color: 'red'    },
-  { id: 'lainnya',  label: 'Lain-lain',            icon: 'more-horizontal',color: 'blue'   }
-];
-
-/* ============================================================
-   STATE & ELEMENTS
-   ============================================================ */
-let state = {
-  hari: null,
-  nama: null,
-  currentKelompok: null,
-  currentSiswa: null,
-  selectedKategori: new Set()
-};
-
-const $ = (id) => document.getElementById(id);
-
-/* ============================================================
-   UTILITIES
-   ============================================================ */
-function show(el) { if (typeof el === 'string') el = $(el); if (el) el.classList.remove('hide'); }
-function hide(el) { if (typeof el === 'string') el = $(el); if (el) el.classList.add('hide'); }
-function showScreen(name) {
-  ['screenSetup','screenMenu','screenDaftar'].forEach(s => hide(s));
-  show(name);
-  if (name === 'screenSetup') hide('btnBackHeader'); else show('btnBackHeader');
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-  lucide.createIcons();
-}
-function showToast(msg) {
-  $('toastMsg').textContent = msg;
-  show('toast');
-  setTimeout(() => hide('toast'), 2500);
-}
-function uid() { return 'kejadian_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7); }
-
-/* ============================================================
-   LOCAL STORAGE
-   ============================================================ */
-function loadSetup() {
-  const h = localStorage.getItem('fasilitator_hari');
-  const n = localStorage.getItem('fasilitator_nama');
-  if (h && n) {
-    state.hari = h;
-    state.nama = n;
-    $('inputHari').value = h;
-    $('inputNama').value = n;
-    return true;
-  }
-  return false;
-}
-function saveSetup() {
-  localStorage.setItem('fasilitator_hari', state.hari);
-  localStorage.setItem('fasilitator_nama', state.nama);
-}
-function clearSetup() {
-  localStorage.removeItem('fasilitator_hari');
-  localStorage.removeItem('fasilitator_nama');
-}
-function updateUserInfo() {
-  if (state.nama && state.hari) {
-    $('userInfoText').textContent = `${state.nama} • ${state.hari}`;
-    show('userInfoPill'); show('statusBadge');
-  } else { hide('userInfoPill'); hide('statusBadge'); }
-}
-
-/* ============================================================
-   RENDER: MENU KELOMPOK
-   Menggunakan data dari data-siswa.js (daftarKelompok & dataSiswa)
-   ============================================================ */
-function renderMenuKelompok() {
-  const grid = $('gridKelompok');
-  grid.innerHTML = '';
-  
-  // daftarKelompok = ["KELOMPOK A", "KELOMPOK B", ...]
-  daftarKelompok.forEach((namaKelompok, idx) => {
-    const huruf = namaKelompok.split(' ')[1]; // ambil "A", "B", dst
-    const count = dataSiswa[namaKelompok].length; // jumlah siswa di kelompok ini
-    
-    const btn = document.createElement('button');
-    btn.className = 'card-hover bg-[#141414] border border-neutral-900 rounded-2xl p-4 sm:p-5 text-left group';
-    btn.innerHTML = `
-      <div class="flex items-start justify-between mb-4">
-        <div class="w-11 h-11 rounded-xl bg-gradient-to-br from-red-500/20 to-red-700/10 border border-red-500/20 flex items-center justify-center text-red-400 font-bold">
-          ${huruf}
-        </div>
-        <i data-lucide="chevron-right" class="w-4 h-4 text-neutral-600 group-hover:text-red-400 group-hover:translate-x-0.5 transition"></i>
-      </div>
-      <h3 class="font-bold text-sm">${namaKelompok}</h3>
-      <p class="text-[11px] text-neutral-500 mt-0.5 flex items-center gap-1">
-        <i data-lucide="users" class="w-3 h-3"></i>
-        ${count} siswa
-      </p>
-    `;
-    btn.style.animationDelay = `${idx * 40}ms`;
-    btn.classList.add('animate-fadeInUp');
-    btn.style.opacity = '0';
-    btn.onclick = () => openKelompok(namaKelompok);
-    grid.appendChild(btn);
-  });
-  lucide.createIcons();
-}
-
-/* ============================================================
-   RENDER: DAFTAR SISWA
-   Menggunakan data dari data-siswa.js
-   ============================================================ */
-function openKelompok(namaKelompok) {
-  state.currentKelompok = namaKelompok;
-  const huruf = namaKelompok.split(' ')[1];
-  
-  $('kelompokBadge').textContent = huruf;
-  $('kelompokTitle').textContent = namaKelompok;
-  $('kelompokCount').textContent = `${dataSiswa[namaKelompok].length} siswa`;
-  $('inputSearch').value = '';
-  renderListSiswa(dataSiswa[namaKelompok]);
-  showScreen('screenDaftar');
-}
-
-function renderListSiswa(list) {
-  const container = $('listSiswa');
-  container.innerHTML = '';
-  if (list.length === 0) { show('emptyState'); return; }
-  hide('emptyState');
-  
-  list.forEach((s, idx) => {
-    const row = document.createElement('button');
-    row.className = 'card-hover w-full bg-[#141414] border border-neutral-900 rounded-xl p-3.5 flex items-center gap-3 text-left';
-    row.innerHTML = `
-      <div class="w-10 h-10 rounded-lg bg-neutral-900 border border-neutral-800 flex items-center justify-center text-neutral-400 font-bold text-sm flex-shrink-0">
-        ${s.nomor_absen}
-      </div>
-      <div class="flex-1 min-w-0">
-        <h4 class="font-semibold text-sm truncate">${s.nama_lengkap}</h4>
-        <p class="text-[11px] text-neutral-500 font-mono truncate mt-0.5">${s.doc_id}</p>
-      </div>
-      <div class="flex items-center gap-2 flex-shrink-0">
-        <div class="w-2 h-2 rounded-full bg-emerald-500/40"></div>
-        <i data-lucide="chevron-right" class="w-4 h-4 text-neutral-600"></i>
-      </div>
-    `;
-    row.style.animationDelay = `${idx * 25}ms`;
-    row.classList.add('animate-fadeInUp');
-    row.style.opacity = '0';
-    row.onclick = () => openModal(s);
-    container.appendChild(row);
-  });
-  lucide.createIcons();
-}
-
-/* ============================================================
-   RENDER: KATEGORI
-   ============================================================ */
-function renderKategori() {
-  const container = $('listKategori');
-  container.innerHTML = '';
-  KATEGORI.forEach(k => {
-    const checked = state.selectedKategori.has(k.id);
-    const item = document.createElement('label');
-    item.className = `custom-check flex items-center gap-3 bg-[#0a0a0a] border border-neutral-800 rounded-xl px-4 py-3 ${checked ? 'selected' : ''}`;
-    item.innerHTML = `
-      <input type="checkbox" ${checked ? 'checked' : ''} data-id="${k.id}">
-      <div class="w-9 h-9 rounded-lg bg-${k.color}-500/10 border border-${k.color}-500/20 flex items-center justify-center flex-shrink-0">
-        <i data-lucide="${k.icon}" class="w-4 h-4 text-${k.color}-400"></i>
-      </div>
-      <span class="flex-1 text-sm font-medium">${k.label}</span>
-      <div class="checkmark">
-        <i data-lucide="check" class="w-3.5 h-3.5 text-white"></i>
-      </div>
-    `;
-    item.querySelector('input').addEventListener('change', (e) => {
-      if (e.target.checked) state.selectedKategori.add(k.id);
-      else state.selectedKategori.delete(k.id);
-      item.classList.toggle('selected', e.target.checked);
-      hide('errorKategori');
-    });
-    container.appendChild(item);
-  });
-  lucide.createIcons();
-}
-
-/* ============================================================
-   MODAL LOGIC
-   ============================================================ */
-function openModal(siswa) {
-  state.currentSiswa = siswa;
-  state.selectedKategori.clear();
-  $('modalAvatar').textContent = siswa.nama_lengkap.charAt(0).toUpperCase();
-  $('modalNama').textContent = siswa.nama_lengkap;
-  $('modalKelompok').textContent = `${siswa.kelompok} • No. ${siswa.nomor_absen}`;
-  $('modalId').textContent = siswa.doc_id;
-  $('modalSubtitle').textContent = state.hari;
-  $('inputKomentar').value = '';
-  hide('errorKategori');
-  renderKategori();
-  show('modalInput');
-  document.body.style.overflow = 'hidden';
-}
-
-function closeModal() {
-  hide('modalInput');
-  document.body.style.overflow = '';
-}
-
-function simpanPelanggaran() {
-  if (state.selectedKategori.size === 0) { show('errorKategori'); return; }
-  
-  const payload = {
-    id: uid(),
-    doc_id: state.currentSiswa.doc_id,
-    nomor_absen: state.currentSiswa.nomor_absen,
-    nama_lengkap: state.currentSiswa.nama_lengkap,
-    kelompok: state.currentSiswa.kelompok,
-    hari: state.hari,
-    kategori: Array.from(state.selectedKategori).map(id => KATEGORI.find(k => k.id === id).label),
-    komentar: $('inputKomentar').value.trim() || null,
-    waktu_input: new Date().toISOString(),
-    fasilitator: state.nama
+  // ── STATE ─────────────────────────────────────────────────────
+  let state = {
+    hari: null,
+    nama: null,
+    currentKelompok: null,
+    currentSiswa: null,
+    selectedKategori: new Set(),
+    isSaving: false
   };
-  
-  console.log('%c[SIMPAN PELANGGARAN]', 'background:#ef4444;color:white;font-weight:bold;padding:2px 6px;border-radius:4px', payload);
-  alert('✅ Pelanggaran berhasil disimpan!\n\nLihat console (F12) untuk payload JSON lengkap.');
-  closeModal();
-  showToast(`Tersimpan untuk ${state.currentSiswa.nama_lengkap}`);
-}
 
-/* ============================================================
-   NAVIGATION
-   ============================================================ */
-function handleBack() {
-  if (!$('modalInput').classList.contains('hide')) { closeModal(); return; }
-  if (!$('screenDaftar').classList.contains('hide')) showScreen('screenMenu');
-  else if (!$('screenMenu').classList.contains('hide')) showScreen('screenSetup');
-}
+  // ── HELPERS ───────────────────────────────────────────────────
+  const $ = (id) => document.getElementById(id);
+  function show(el) { if (typeof el === 'string') el = $(el); if (el) el.classList.remove('hide'); }
+  function hide(el) { if (typeof el === 'string') el = $(el); if (el) el.classList.add('hide'); }
 
-/* ============================================================
-   EVENT BINDINGS
-   ============================================================ */
-$('btnMulai').addEventListener('click', () => {
-  const nama = $('inputNama').value.trim();
-  const hari = $('inputHari').value;
-  if (!nama) { show('errorNama'); $('inputNama').focus(); return; }
-  hide('errorNama');
-  state.nama = nama;
-  state.hari = hari;
-  saveSetup();
-  updateUserInfo();
-  renderMenuKelompok();
-  showScreen('screenMenu');
-});
-
-$('inputNama').addEventListener('input', () => hide('errorNama'));
-$('btnResetSetup').addEventListener('click', () => {
-  if (confirm('Yakin ingin mengganti fasilitator?')) {
-    clearSetup();
-    state.nama = null;
-    state.hari = null;
-    updateUserInfo();
-    showScreen('screenSetup');
+  function showScreen(name) {
+    ['screenSetup','screenMenu','screenDaftar'].forEach(s => hide(s));
+    show(name);
+    if (name === 'screenSetup') {
+      hide('btnBackHeader'); hide('btnRiwayat');
+    } else {
+      show('btnBackHeader'); show('btnRiwayat');
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    lucide.createIcons();
   }
-});
-$('btnBackHeader').addEventListener('click', handleBack);
-$('inputSearch').addEventListener('input', (e) => {
-  const q = e.target.value.toLowerCase();
-  const filtered = dataSiswa[state.currentKelompok].filter(s =>
-    s.nama_lengkap.toLowerCase().includes(q) ||
-    s.nomor_absen.includes(q) ||
-    s.doc_id.toLowerCase().includes(q)
-  );
-  renderListSiswa(filtered);
-});
-$('btnCloseModal').addEventListener('click', closeModal);
-$('btnBatalModal').addEventListener('click', closeModal);
-$('btnSimpan').addEventListener('click', simpanPelanggaran);
-$('modalInput').addEventListener('click', (e) => { if (e.target.id === 'modalInput') closeModal(); });
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && !$('modalInput').classList.contains('hide')) closeModal();
-});
 
-/* ============================================================
-   INIT
-   ============================================================ */
-(function init() {
-  lucide.createIcons();
-  // Log untuk debug - pastikan data ter-load
-  console.log('✅ Data Siswa loaded:', Object.keys(dataSiswa));
-  console.log('✅ Total siswa:', Object.values(dataSiswa).reduce((sum, arr) => sum + arr.length, 0));
-  
-  if (loadSetup()) {
-    updateUserInfo();
-    renderMenuKelompok();
-    showScreen('screenMenu');
-  } else {
-    showScreen('screenSetup');
+  function showToast(msg, isError = false) {
+    const toast = $('toast');
+    toast.className = `fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] text-white text-sm font-medium px-5 py-3 rounded-xl shadow-lg flex items-center gap-2 animate-fadeInUp ${isError ? 'bg-red-600/95' : 'bg-emerald-500/95'} backdrop-blur`;
+    $('toastIcon').setAttribute('data-lucide', isError ? 'x-circle' : 'check-circle-2');
+    $('toastMsg').textContent = msg;
+    show(toast);
+    lucide.createIcons();
+    setTimeout(() => hide(toast), 3000);
   }
-})();
+
+  // ── LOCAL STORAGE ─────────────────────────────────────────────
+  function loadSetup() {
+    const h = localStorage.getItem('fasilitator_hari');
+    const n = localStorage.getItem('fasilitator_nama');
+    if (h && n) { state.hari = h; state.nama = n; $('inputHari').value = h; $('inputNama').value = n; return true; }
+    return false;
+  }
+  function saveSetup() {
+    localStorage.setItem('fasilitator_hari', state.hari);
+    localStorage.setItem('fasilitator_nama', state.nama);
+  }
+  function clearSetup() {
+    localStorage.removeItem('fasilitator_hari');
+    localStorage.removeItem('fasilitator_nama');
+  }
+  function updateUserInfo() {
+    if (state.nama && state.hari) {
+      $('userInfoText').textContent = `${state.nama} • ${state.hari}`;
+      show('userInfoPill'); show('statusBadge');
+    } else { hide('userInfoPill'); hide('statusBadge'); }
+  }
+
+  // ── RENDER: MENU KELOMPOK ─────────────────────────────────────
+  function renderMenuKelompok() {
+    const grid = $('gridKelompok');
+    grid.innerHTML = '';
+    daftarKelompok.forEach((namaKelompok, idx) => {
+      const huruf = namaKelompok.split(' ')[1];
+      const count = dataSiswa[namaKelompok].length;
+      const btn = document.createElement('button');
+      btn.className = 'card-hover bg-[#141414] border border-neutral-900 rounded-2xl p-4 sm:p-5 text-left group';
+      btn.innerHTML = `
+        <div class="flex items-start justify-between mb-4">
+          <div class="w-11 h-11 rounded-xl bg-gradient-to-br from-red-500/20 to-red-700/10 border border-red-500/20 flex items-center justify-center text-red-400 font-bold">${huruf}</div>
+          <i data-lucide="chevron-right" class="w-4 h-4 text-neutral-600 group-hover:text-red-400 group-hover:translate-x-0.5 transition"></i>
+        </div>
+        <h3 class="font-bold text-sm">${namaKelompok}</h3>
+        <p class="text-[11px] text-neutral-500 mt-0.5 flex items-center gap-1">
+          <i data-lucide="users" class="w-3 h-3"></i>${count} siswa
+        </p>`;
+      btn.style.animationDelay = `${idx * 40}ms`;
+      btn.classList.add('animate-fadeInUp');
+      btn.style.opacity = '0';
+      btn.onclick = () => openKelompok(namaKelompok);
+      grid.appendChild(btn);
+    });
+    lucide.createIcons();
+  }
+
+  // ── RENDER: DAFTAR SISWA ──────────────────────────────────────
+  function openKelompok(namaKelompok) {
+    state.currentKelompok = namaKelompok;
+    const huruf = namaKelompok.split(' ')[1];
+    $('kelompokBadge').textContent = huruf;
+    $('kelompokTitle').textContent = namaKelompok;
+    $('kelompokCount').textContent = `${dataSiswa[namaKelompok].length} siswa`;
+    $('inputSearch').value = '';
+    renderListSiswa(dataSiswa[namaKelompok]);
+    showScreen('screenDaftar');
+  }
+
+  function renderListSiswa(list) {
+    const container = $('listSiswa');
+    container.innerHTML = '';
+    if (list.length === 0) { show('emptyState'); return; }
+    hide('emptyState');
+    list.forEach((s, idx) => {
+      const row = document.createElement('button');
+      row.className = 'card-hover w-full bg-[#141414] border border-neutral-900 rounded-xl p-3.5 flex items-center gap-3 text-left';
+      row.innerHTML = `
+        <div class="w-10 h-10 rounded-lg bg-neutral-900 border border-neutral-800 flex items-center justify-center text-neutral-400 font-bold text-sm flex-shrink-0">${s.nomor_absen}</div>
+        <div class="flex-1 min-w-0">
+          <h4 class="font-semibold text-sm truncate">${s.nama_lengkap}</h4>
+          <p class="text-[11px] text-neutral-500 font-mono truncate mt-0.5">${s.doc_id}</p>
+        </div>
+        <div class="flex items-center gap-2 flex-shrink-0">
+          <div class="w-2 h-2 rounded-full bg-emerald-500/40"></div>
+          <i data-lucide="chevron-right" class="w-4 h-4 text-neutral-600"></i>
+        </div>`;
+      row.style.animationDelay = `${idx * 25}ms`;
+      row.classList.add('animate-fadeInUp');
+      row.style.opacity = '0';
+      row.onclick = () => openModal(s);
+      container.appendChild(row);
+    });
+    lucide.createIcons();
+  }
+
+  // ── RENDER: KATEGORI ──────────────────────────────────────────
+  function renderKategori() {
+    const container = $('listKategori');
+    container.innerHTML = '';
+    KATEGORI.forEach(k => {
+      const checked = state.selectedKategori.has(k.id);
+      const item = document.createElement('label');
+      item.className = `custom-check flex items-center gap-3 bg-[#0a0a0a] border border-neutral-800 rounded-xl px-4 py-3 ${checked ? 'selected' : ''}`;
+      item.innerHTML = `
+        <input type="checkbox" ${checked ? 'checked' : ''} data-id="${k.id}">
+        <div class="w-9 h-9 rounded-lg bg-${k.color}-500/10 border border-${k.color}-500/20 flex items-center justify-center flex-shrink-0">
+          <i data-lucide="${k.icon}" class="w-4 h-4 text-${k.color}-400"></i>
+        </div>
+        <span class="flex-1 text-sm font-medium">${k.label}</span>
+        <div class="checkmark"><i data-lucide="check" class="w-3.5 h-3.5 text-white"></i></div>`;
+      item.querySelector('input').addEventListener('change', (e) => {
+        if (e.target.checked) state.selectedKategori.add(k.id);
+        else state.selectedKategori.delete(k.id);
+        item.classList.toggle('selected', e.target.checked);
+        hide('errorKategori');
+      });
+      container.appendChild(item);
+    });
+    lucide.createIcons();
+  }
+
+  // ── MODAL PELANGGARAN ─────────────────────────────────────────
+  function openModal(siswa) {
+    state.currentSiswa = siswa;
+    state.selectedKategori.clear();
+    $('modalAvatar').textContent = siswa.nama_lengkap.charAt(0).toUpperCase();
+    $('modalNama').textContent = siswa.nama_lengkap;
+    $('modalKelompok').textContent = `${siswa.kelompok} • No. ${siswa.nomor_absen}`;
+    $('modalId').textContent = siswa.doc_id;
+    $('modalSubtitle').textContent = state.hari;
+    $('inputKomentar').value = '';
+    hide('errorKategori');
+    renderKategori();
+    show('modalInput');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeModal() {
+    if (state.isSaving) return; // jangan tutup saat sedang menyimpan
+    hide('modalInput');
+    document.body.style.overflow = '';
+  }
+
+  // ── SIMPAN PELANGGARAN KE FIRESTORE ──────────────────────────
+  async function simpanPelanggaran() {
+    if (state.selectedKategori.size === 0) { show('errorKategori'); return; }
+    if (state.isSaving) return;
+
+    // Set loading state
+    state.isSaving = true;
+    const btnSimpan = $('btnSimpan');
+    btnSimpan.disabled = true;
+    btnSimpan.innerHTML = `<div class="spinner"></div><span>Menyimpan...</span>`;
+
+    const siswa = state.currentSiswa;
+    const kejadianId = `kejadian_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+    const waktuInput = new Date().toISOString();
+    const kategoriLabels = Array.from(state.selectedKategori).map(id => KATEGORI.find(k => k.id === id).label);
+
+    const kejadianData = {
+      hari: state.hari,
+      kategori: kategoriLabels,
+      komentar: $('inputKomentar').value.trim() || '',
+      waktu_input: waktuInput,
+      fasilitator: state.nama
+    };
+
+    try {
+      const docRef = doc(db, "rekap_pelanggaran", siswa.doc_id);
+      const docSnap = await getDoc(docRef);
+
+      if (docSnap.exists()) {
+        await updateDoc(docRef, {
+          [`riwayat.${kejadianId}`]: kejadianData,
+          total_pelanggaran: increment(1)
+        });
+      } else {
+        await setDoc(docRef, {
+          nomor_absen: siswa.nomor_absen,
+          nama_lengkap: siswa.nama_lengkap,
+          kelompok: siswa.kelompok,
+          total_pelanggaran: 1,
+          riwayat: { [kejadianId]: kejadianData }
+        });
+      }
+
+      // Simpan ke localStorage untuk fitur riwayat
+      const riwayatLokal = JSON.parse(localStorage.getItem('riwayat_input') || '[]');
+      riwayatLokal.push({
+        doc_id: siswa.doc_id,
+        kejadian_id: kejadianId,
+        nama: siswa.nama_lengkap,
+        kategori: kategoriLabels.join(', '),
+        waktu: waktuInput
+      });
+      localStorage.setItem('riwayat_input', JSON.stringify(riwayatLokal));
+
+      closeModal();
+      showToast(`✅ Tersimpan untuk ${siswa.nama_lengkap}`);
+    } catch (error) {
+      console.error('[Firestore] Error:', error);
+      showToast(`❌ Gagal: ${error.message}`, true);
+    } finally {
+      // Reset button
+      state.isSaving = false;
+      btnSimpan.disabled = false;
+      btnSimpan.innerHTML = `<i data-lucide="save" class="w-4 h-4"></i><span>Simpan Pelanggaran</span>`;
+      lucide.createIcons();
+    }
+  }
+
+  // ── RIWAYAT INPUT ─────────────────────────────────────────────
+  function showRiwayat() {
+    const riwayatLokal = JSON.parse(localStorage.getItem('riwayat_input') || '[]');
+    const container = $('listRiwayat');
+    container.innerHTML = '';
+
+    if (riwayatLokal.length === 0) {
+      container.innerHTML = '<p class="text-center text-neutral-500 text-sm py-8">Belum ada riwayat input.</p>';
+    } else {
+      riwayatLokal.slice().reverse().forEach((item, revIdx) => {
+        const originalIdx = riwayatLokal.length - 1 - revIdx;
+        const card = document.createElement('div');
+        card.className = 'bg-[#0a0a0a] border border-neutral-800 rounded-xl p-4';
+        const tgl = new Date(item.waktu).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+        card.innerHTML = `
+          <p class="font-bold text-sm text-blue-300">${item.nama}</p>
+          <p class="text-xs text-neutral-400 mt-0.5">${item.kategori}</p>
+          <p class="text-[11px] text-neutral-600 mt-1">${tgl}</p>
+          <button class="btn-hapus mt-3 text-[11px] text-red-400 hover:text-red-300 flex items-center gap-1" data-doc="${item.doc_id}" data-kejadian="${item.kejadian_id}" data-idx="${originalIdx}">
+            <i data-lucide="trash-2" class="w-3 h-3"></i> Hapus dari Firebase
+          </button>`;
+        card.querySelector('.btn-hapus').onclick = (e) => {
+          const btn = e.currentTarget;
+          hapusPelanggaran(btn.dataset.doc, btn.dataset.kejadian, parseInt(btn.dataset.idx));
+        };
+        container.appendChild(card);
+      });
+    }
+    show('modalRiwayat');
+    document.body.style.overflow = 'hidden';
+    lucide.createIcons();
+  }
+
+  async function hapusPelanggaran(docId, kejadianId, lokalIndex) {
+    if (!confirm('Yakin ingin menghapus pelanggaran ini dari Firebase?')) return;
+    try {
+      const docRef = doc(db, "rekap_pelanggaran", docId);
+      await updateDoc(docRef, {
+        [`riwayat.${kejadianId}`]: deleteField(),
+        total_pelanggaran: increment(-1)
+      });
+      let riwayatLokal = JSON.parse(localStorage.getItem('riwayat_input') || '[]');
+      riwayatLokal.splice(lokalIndex, 1);
+      localStorage.setItem('riwayat_input', JSON.stringify(riwayatLokal));
+      showRiwayat(); // refresh modal
+      showToast('Data berhasil dihapus');
+    } catch (error) {
+      console.error('[Firestore] Delete error:', error);
+      showToast('Gagal menghapus data', true);
+    }
+  }
+
+  // ── NAVIGASI ──────────────────────────────────────────────────
+  function handleBack() {
+    if (!$('modalInput').classList.contains('hide')) { closeModal(); return; }
+    if (!$('modalRiwayat').classList.contains('hide')) { hide('modalRiwayat'); document.body.style.overflow = ''; return; }
+    if (!$('screenDaftar').classList.contains('hide')) showScreen('screenMenu');
+    else if (!$('screenMenu').classList.contains('hide')) showScreen('screenSetup');
+  }
+
+  // ── EVENT BINDINGS ────────────────────────────────────────────
+  $('btnMulai').addEventListener('click', () => {
+    const nama = $('inputNama').value.trim();
+    const hari = $('inputHari').value;
+    if (!nama) { show('errorNama'); $('inputNama').focus(); return; }
+    hide('errorNama');
+    state.nama = nama; state.hari = hari;
+    saveSetup(); updateUserInfo(); renderMenuKelompok(); showScreen('screenMenu');
+  });
+
+  $('inputNama').addEventListener('input', () => hide('errorNama'));
+
+  $('btnResetSetup').addEventListener('click', () => {
+    if (confirm('Yakin ingin mengganti fasilitator?')) {
+      clearSetup(); state.nama = null; state.hari = null;
+      updateUserInfo(); showScreen('screenSetup');
+    }
+  });
+
+  $('btnBackHeader').addEventListener('click', handleBack);
+
+  $('inputSearch').addEventListener('input', (e) => {
+    const q = e.target.value.toLowerCase();
+    const filtered = dataSiswa[state.currentKelompok].filter(s =>
+      s.nama_lengkap.toLowerCase().includes(q) ||
+      s.nomor_absen.includes(q) ||
+      s.doc_id.toLowerCase().includes(q)
+    );
+    renderListSiswa(filtered);
+  });
+
+  $('btnCloseModal').addEventListener('click', closeModal);
+  $('btnBatalModal').addEventListener('click', closeModal);
+  $('btnSimpan').addEventListener('click', simpanPelanggaran);
+  $('modalInput').addEventListener('click', (e) => { if (e.target.id === 'modalInput') closeModal(); });
+
+  $('btnRiwayat').addEventListener('click', showRiwayat);
+  $('btnCloseRiwayat').addEventListener('click', () => { hide('modalRiwayat'); document.body.style.overflow = ''; });
+  $('modalRiwayat').addEventListener('click', (e) => { if (e.target.id === 'modalRiwayat') { hide('modalRiwayat'); document.body.style.overflow = ''; } });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') handleBack();
+  });
+
+  // ── INIT ──────────────────────────────────────────────────────
+  (function init() {
+    lucide.createIcons();
+    console.log('✅ INSEKTA 11 ready.');
+    console.log(`   Kelompok: ${daftarKelompok.length}, Total siswa: ${daftarSiswa.length}`);
+    if (loadSetup()) { updateUserInfo(); renderMenuKelompok(); showScreen('screenMenu'); }
+    else showScreen('screenSetup');
+  })();
 </script>
 
 </body>
