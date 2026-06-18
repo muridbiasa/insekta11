@@ -147,6 +147,11 @@
         </button>
       </div>
     </div>
+    <div class="relative mb-4">
+      <i data-lucide="search" class="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-neutral-500"></i>
+      <input id="inputSearchGlobal" type="text" placeholder="Cari nama, no absen, atau ID siswa..." class="w-full bg-[#0a0a0a] border border-neutral-800 rounded-xl pl-11 pr-4 py-3 text-sm placeholder:text-neutral-600 focus:outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500/20"/>
+    </div>
+    <div id="globalSearchResults" class="hide mt-4 space-y-2"></div>
     <div id="gridKelompok" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4"></div>
     <div class="mt-8 bg-[#141414] border border-neutral-900 rounded-xl p-4 flex items-center gap-3">
       <div class="w-9 h-9 rounded-lg bg-amber-500/10 flex items-center justify-center flex-shrink-0">
@@ -380,14 +385,15 @@
   }
 
   // ── RENDER: DAFTAR SISWA ──────────────────────────────────────
-  function openKelompok(namaKelompok) {
+  function openKelompok(namaKelompok, searchValue = '') {
     state.currentKelompok = namaKelompok;
     const huruf = namaKelompok.split(' ')[1];
     $('kelompokBadge').textContent = huruf;
     $('kelompokTitle').textContent = namaKelompok;
     $('kelompokCount').textContent = `${dataSiswa[namaKelompok].length} siswa`;
-    $('inputSearch').value = '';
-    renderListSiswa(dataSiswa[namaKelompok]);
+    $('inputSearch').value = searchValue;
+    const filtered = searchValue ? dataSiswa[namaKelompok].filter(s => matchesSiswa(s, searchValue.toLowerCase())) : dataSiswa[namaKelompok];
+    renderListSiswa(filtered);
     showScreen('screenDaftar');
   }
 
@@ -416,6 +422,61 @@
       container.appendChild(row);
     });
     lucide.createIcons();
+  }
+
+  function renderGlobalSearchResults(results, query) {
+    const container = $('globalSearchResults');
+
+    if (!query) {
+      container.innerHTML = '';
+      hide(container);
+      return;
+    }
+
+    show(container);
+
+    if (results.length === 0) {
+      container.innerHTML = `
+        <div class="bg-[#0a0a0a] border border-neutral-800 rounded-xl p-4 text-center">
+          <p class="text-sm text-neutral-400">Siswa tidak ditemukan.</p>
+        </div>`;
+      lucide.createIcons();
+      return;
+    }
+
+    container.innerHTML = results.map(s => `
+      <button class="card-hover w-full bg-[#0a0a0a] border border-neutral-800 rounded-xl p-3.5 flex items-center justify-between gap-3 text-left" data-doc="${s.doc_id}">
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="w-10 h-10 rounded-lg bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400 font-bold text-sm flex-shrink-0">${s.nomor_absen}</div>
+          <div class="min-w-0">
+            <h3 class="font-semibold text-sm truncate">${s.nama_lengkap}</h3>
+            <p class="text-[11px] text-neutral-500">${s.kelompok} • No. ${s.nomor_absen}</p>
+          </div>
+        </div>
+        <i data-lucide="arrow-right" class="w-4 h-4 text-neutral-500 flex-shrink-0"></i>
+      </button>
+    `).join('');
+
+    container.querySelectorAll('button[data-doc]').forEach(btn => {
+      btn.onclick = () => openSiswaDariPencarian(btn.dataset.doc);
+    });
+    lucide.createIcons();
+  }
+
+  function openSiswaDariPencarian(docId) {
+    const siswa = daftarSiswa.find(s => s.doc_id === docId);
+    if (!siswa) return;
+    openKelompok(siswa.kelompok, siswa.nama_lengkap);
+  }
+
+  function matchesSiswa(siswa, query) {
+    const q = query.toLowerCase();
+    return [
+      siswa.nama_lengkap,
+      siswa.nomor_absen,
+      siswa.doc_id,
+      siswa.kelompok
+    ].some(value => String(value).toLowerCase().includes(q));
   }
 
   // ── RENDER: KATEGORI ──────────────────────────────────────────
@@ -621,12 +682,14 @@
 
   $('inputSearch').addEventListener('input', (e) => {
     const q = e.target.value.toLowerCase();
-    const filtered = dataSiswa[state.currentKelompok].filter(s =>
-      s.nama_lengkap.toLowerCase().includes(q) ||
-      s.nomor_absen.includes(q) ||
-      s.doc_id.toLowerCase().includes(q)
-    );
+    const filtered = dataSiswa[state.currentKelompok].filter(s => matchesSiswa(s, q));
     renderListSiswa(filtered);
+  });
+
+  $('inputSearchGlobal').addEventListener('input', (e) => {
+    const q = e.target.value.trim().toLowerCase();
+    const results = q ? daftarSiswa.filter(s => matchesSiswa(s, q)) : [];
+    renderGlobalSearchResults(results, q);
   });
 
   $('btnCloseModal').addEventListener('click', closeModal);
