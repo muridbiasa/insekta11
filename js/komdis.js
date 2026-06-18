@@ -54,6 +54,12 @@ inputPassword.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') btnLogin.click();
 });
 
+document.addEventListener('click', (e) => {
+    if (e.target.closest('.filter-dropdown')) return;
+
+    document.querySelectorAll('.filter-dropdown[open]').forEach(details => details.removeAttribute('open'));
+});
+
 // 2. Dashboard Initialization & Real-time Listener
 function initDashboard() {
     // Query hanya siswa yang total_pelanggarannya > 0
@@ -79,11 +85,13 @@ function initDashboard() {
     });
 
     populateFilterOptions();
+    updateDropdownSummaries();
 
     dashboardContainer.addEventListener('change', (e) => {
         if (!e.target.matches('.filter-hari, .filter-kategori, .filter-kelompok')) return;
 
         updateSelectedFilters();
+        updateDropdownSummaries();
         renderDashboard();
     });
 
@@ -184,9 +192,24 @@ function updateSelectedFilters() {
     document.querySelectorAll('.filter-kelompok:checked').forEach(input => selectedKelompok.add(input.value));
 }
 
+function updateDropdownSummaries() {
+    document.querySelectorAll('.filter-dropdown').forEach(details => {
+        const group = details.dataset.filterGroup;
+        const checkedInputs = Array.from(document.querySelectorAll(`.filter-${group}:checked`));
+        const summary = details.querySelector('[data-filter-summary]');
+        const defaultLabel = details.dataset.defaultLabel;
+
+        if (!summary) return;
+
+        summary.textContent = checkedInputs.length === 0
+            ? defaultLabel
+            : checkedInputs.map(input => input.dataset.label || input.value).join(', ');
+    });
+}
+
 function populateFilterOptions() {
     filterKelompokOptions.innerHTML = daftarKelompok.map(kelompok => `
-        <label class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-900 border border-gray-600 text-gray-200 text-xs font-semibold cursor-pointer hover:border-blue-500 transition">
+        <label class="flex items-center gap-2 rounded-lg px-2 py-2 text-xs font-semibold text-gray-200 cursor-pointer hover:bg-gray-800">
             <input type="checkbox" class="filter-kelompok accent-blue-500" value="${escapeHtml(kelompok)}">
             <span>${escapeHtml(kelompok)}</span>
         </label>
