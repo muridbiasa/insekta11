@@ -265,7 +265,7 @@ function showDetail(s) {
                         <span class="text-xs text-gray-500 block mt-1">${tgl}</span>
                     </div>
                     <button type="button" class="revoke-btn shrink-0 text-xs font-bold text-red-300 hover:text-red-100 hover:bg-red-900/50 px-3 py-1.5 rounded-lg transition" data-kejadian-id="${escapeHtml(r.id)}">
-                        Revoke
+                        Hapus
                     </button>
                 </div>
                 <div class="flex flex-wrap gap-2 mb-2">
