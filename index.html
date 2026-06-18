@@ -246,14 +246,14 @@
     <div class="sticky top-0 bg-[#141414] border-b border-neutral-900 px-5 py-4 flex items-center justify-between z-10">
       <div class="flex items-center gap-2">
         <i data-lucide="history" class="w-4 h-4 text-blue-400"></i>
-        <h3 class="text-sm font-bold">Riwayat Input Saya</h3>
+        <h3 class="text-sm font-bold">Input Saya</h3>
       </div>
       <button id="btnCloseRiwayat" class="w-8 h-8 rounded-lg hover:bg-neutral-800 flex items-center justify-center transition">
         <i data-lucide="x" class="w-4 h-4"></i>
       </button>
     </div>
     <div id="listRiwayat" class="p-4 space-y-3">
-      <p class="text-center text-neutral-500 text-sm py-8">Belum ada riwayat input.</p>
+      <p class="text-center text-neutral-500 text-sm py-8">Belum ada input.</p>
     </div>
   </div>
 </div>
@@ -476,6 +476,10 @@
     const btnSimpan = $('btnSimpan');
     btnSimpan.disabled = true;
     btnSimpan.innerHTML = `<div class="spinner"></div><span>Menyimpan...</span>`;
+
+    // tutup modal dulu sebelum proses simpan agar tidak tersisa di layar
+    hide('modalInput');
+    document.body.style.overflow = '';
 
     const siswa = state.currentSiswa;
     const kejadianId = `kejadian_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
