@@ -1,18 +1,30 @@
 // js/komdis.js
 import { db } from './firebase-config.js';
+import { daftarSiswa } from './data-siswa.js';
 import { collection, query, where, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
+// ============================================================
+// ADAPTER — konversi flat array → object map untuk renderUI
+// ============================================================
+const dataSiswa = daftarSiswa.reduce((acc, siswa) => {
+    if (!acc[siswa.kelompok]) acc[siswa.kelompok] = [];
+    acc[siswa.kelompok].push(siswa);
+    return acc;
+}, {});
+const daftarKelompok = Object.keys(dataSiswa).sort();
+
+// ============================================================
+// DOM ELEMENTS
+// ============================================================
 const gatekeeper = document.getElementById('gatekeeper');
 const dashboardContainer = document.getElementById('dashboard-container');
 const btnLogin = document.getElementById('btn-login');
 const inputPassword = document.getElementById('input-password');
 const errorMsg = document.getElementById('error-msg');
-
 const gridCards = document.getElementById('grid-cards');
 const btnExport = document.getElementById('btn-export');
 const statSiswa = document.getElementById('stat-siswa');
 const statKejadian = document.getElementById('stat-kejadian');
-
 const modalDetail = document.getElementById('modal-detail');
 const detailNama = document.getElementById('detail-nama');
 const detailTimeline = document.getElementById('detail-timeline');
@@ -102,31 +114,44 @@ function renderDashboard() {
     });
     statKejadian.textContent = totalKejadian;
 
+    // EMPTY STATE
     if (filteredData.length === 0) {
         gridCards.innerHTML = '<p class="text-gray-500 col-span-full text-center py-10">Belum ada data pelanggaran. Silakan input dari halaman Fasilitator.</p>';
         return;
     }
 
-    filteredData.forEach(s => {
-        const riwayat = s.riwayat || {};
-        const kejadianCount = Object.values(riwayat).filter(r => currentFilter === "Semua" || r.hari === currentFilter).length;
+    // Render Cards Grouped by Kelompok (Adapter Implementation)
+    daftarKelompok.forEach(kelompok => {
+        const siswaDiKelompokIni = filteredData.filter(s => s.kelompok === kelompok);
         
-        const card = document.createElement('div');
-        card.className = 'bg-gray-800 p-5 rounded-xl border border-gray-700 hover:border-red-500 transition cursor-pointer shadow-lg';
-        card.innerHTML = `
-            <div class="flex justify-between items-start mb-3">
-                <div>
-                    <h3 class="font-bold text-lg text-white">${s.nama_lengkap}</h3>
-                    <p class="text-sm text-gray-400">${s.kelompok} • No. ${s.nomor_absen}</p>
-                </div>
-                <span class="bg-red-500 text-white text-sm font-bold px-3 py-1 rounded-full">${kejadianCount}</span>
-            </div>
-            <div class="flex flex-wrap gap-2 mt-4">
-                ${getKategoriBadges(s, currentFilter)}
-            </div>
-        `;
-        card.onclick = () => showDetail(s);
-        gridCards.appendChild(card);
+        if (siswaDiKelompokIni.length > 0) {
+            const groupHeader = document.createElement('h2');
+            groupHeader.className = 'col-span-full text-xl font-bold text-blue-400 mt-6 mb-2 border-b border-gray-700 pb-2';
+            groupHeader.textContent = kelompok;
+            gridCards.appendChild(groupHeader);
+
+            siswaDiKelompokIni.forEach(s => {
+                const riwayat = s.riwayat || {};
+                const kejadianCount = Object.values(riwayat).filter(r => currentFilter === "Semua" || r.hari === currentFilter).length;
+                
+                const card = document.createElement('div');
+                card.className = 'bg-gray-800 p-5 rounded-xl border border-gray-700 hover:border-red-500 transition cursor-pointer shadow-lg';
+                card.innerHTML = `
+                    <div class="flex justify-between items-start mb-3">
+                        <div>
+                            <h3 class="font-bold text-lg text-white">${s.nama_lengkap}</h3>
+                            <p class="text-sm text-gray-400">${s.kelompok} • No. ${s.nomor_absen}</p>
+                        </div>
+                        <span class="bg-red-500 text-white text-sm font-bold px-3 py-1 rounded-full">${kejadianCount}</span>
+                    </div>
+                    <div class="flex flex-wrap gap-2 mt-4">
+                        ${getKategoriBadges(s, currentFilter)}
+                    </div>
+                `;
+                card.onclick = () => showDetail(s);
+                gridCards.appendChild(card);
+            });
+        }
     });
 }
 
@@ -135,7 +160,6 @@ function getKategoriBadges(siswa, filter) {
     const kejadian = Object.values(riwayat).filter(r => filter === "Semua" || r.hari === filter);
     const kategoriSet = new Set();
     kejadian.forEach(k => k.kategori.forEach(cat => kategoriSet.add(cat)));
-    
     return Array.from(kategoriSet).map(cat => 
         `<span class="bg-gray-700 text-gray-300 text-xs px-2 py-1 rounded">${cat}</span>`
     ).join('');
@@ -145,10 +169,9 @@ function getKategoriBadges(siswa, filter) {
 function showDetail(s) {
     detailNama.textContent = `${s.nama_lengkap} (${s.kelompok})`;
     detailTimeline.innerHTML = '';
-    
     const riwayat = s.riwayat || {};
     let riwayatArray = Object.entries(riwayat).map(([id, data]) => ({ id, ...data }));
-    
+
     if (currentFilter !== "Semua") {
         riwayatArray = riwayatArray.filter(r => r.hari === currentFilter);
     }
@@ -183,10 +206,9 @@ function showDetail(s) {
 // 5. Export CSV
 function exportCSV() {
     if (allData.length === 0) return alert('Tidak ada data untuk diekspor.');
-    
     const BOM = "\uFEFF"; // UTF-8 BOM agar karakter Indonesia terbaca di Excel
     const headers = ["No Absen", "Nama Lengkap", "Kelompok", "Total Pelanggaran", "Pelanggaran Hari 1", "Pelanggaran Hari 2", "Pelanggaran Hari 3"];
-    
+
     const rows = allData.map(s => {
         const riwayat = Object.values(s.riwayat || {});
         
