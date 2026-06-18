@@ -23,9 +23,7 @@ const inputPassword = document.getElementById('input-password');
 const errorMsg = document.getElementById('error-msg');
 const gridCards = document.getElementById('grid-cards');
 const btnExport = document.getElementById('btn-export');
-const filterHari = document.getElementById('filter-hari');
-const filterKategori = document.getElementById('filter-kategori');
-const filterKelompok = document.getElementById('filter-kelompok');
+const filterKelompokOptions = document.getElementById('filter-kelompok-options');
 const inputSearchDashboard = document.getElementById('input-search-dashboard');
 const statSiswa = document.getElementById('stat-siswa');
 const statKejadian = document.getElementById('stat-kejadian');
@@ -35,18 +33,10 @@ const detailTimeline = document.getElementById('detail-timeline');
 const btnTutupDetail = document.getElementById('btn-tutup-detail');
 
 let allData = [];
-let currentFilter = "Semua";
-let currentKategori = "Semua";
-let currentKelompok = "Semua";
 let currentSearch = "";
-
-const KATEGORI_PELANGGARAN = [
-    "Atribut Tidak Lengkap",
-    "Terlambat",
-    "Rambut Panjang",
-    "Pelanggaran Khusus",
-    "Lain-lain"
-];
+const selectedHari = new Set();
+const selectedKategori = new Set();
+const selectedKelompok = new Set();
 
 // 1. Gatekeeper Logic
 btnLogin.addEventListener('click', () => {
@@ -90,18 +80,10 @@ function initDashboard() {
 
     populateFilterOptions();
 
-    filterHari.addEventListener('change', (e) => {
-        currentFilter = e.target.value;
-        renderDashboard();
-    });
+    dashboardContainer.addEventListener('change', (e) => {
+        if (!e.target.matches('.filter-hari, .filter-kategori, .filter-kelompok')) return;
 
-    filterKategori.addEventListener('change', (e) => {
-        currentKategori = e.target.value;
-        renderDashboard();
-    });
-
-    filterKelompok.addEventListener('change', (e) => {
-        currentKelompok = e.target.value;
+        updateSelectedFilters();
         renderDashboard();
     });
 
@@ -173,9 +155,10 @@ function renderDashboard() {
 
 function getFilteredData() {
     return allData.filter(siswa => {
-        const matchesHari = currentFilter === "Semua" || getFilteredRiwayat(siswa).length > 0;
-        const matchesKategori = currentKategori === "Semua" || getFilteredRiwayat(siswa).length > 0;
-        const matchesKelompok = currentKelompok === "Semua" || siswa.kelompok === currentKelompok;
+        const riwayatSiswa = getFilteredRiwayat(siswa);
+        const matchesHari = selectedHari.size === 0 || riwayatSiswa.length > 0;
+        const matchesKategori = selectedKategori.size === 0 || riwayatSiswa.length > 0;
+        const matchesKelompok = selectedKelompok.size === 0 || selectedKelompok.has(siswa.kelompok);
         const matchesNama = !currentSearch || siswa.nama_lengkap.toLowerCase().includes(currentSearch);
         return matchesHari && matchesKategori && matchesKelompok && matchesNama;
     });
@@ -186,19 +169,28 @@ function getFilteredRiwayat(siswa) {
 }
 
 function matchesRiwayatFilter(r) {
-    const matchesHari = currentFilter === "Semua" || r.hari === currentFilter;
-    const matchesKategori = currentKategori === "Semua" || (Array.isArray(r.kategori) && r.kategori.includes(currentKategori));
+    const matchesHari = selectedHari.size === 0 || r.hari && selectedHari.has(r.hari);
+    const matchesKategori = selectedKategori.size === 0 || (Array.isArray(r.kategori) && r.kategori.some(cat => selectedKategori.has(cat)));
     return matchesHari && matchesKategori;
 }
 
-function populateFilterOptions() {
-    filterKelompok.innerHTML = '<option value="Semua">Semua Kelompok</option>' + daftarKelompok.map(kelompok =>
-        `<option value="${escapeHtml(kelompok)}">${escapeHtml(kelompok)}</option>`
-    ).join('');
+function updateSelectedFilters() {
+    selectedHari.clear();
+    selectedKategori.clear();
+    selectedKelompok.clear();
 
-    filterKategori.innerHTML = '<option value="Semua">Semua Kategori</option>' + KATEGORI_PELANGGARAN.map(kategori =>
-        `<option value="${escapeHtml(kategori)}">${escapeHtml(kategori)}</option>`
-    ).join('');
+    document.querySelectorAll('.filter-hari:checked').forEach(input => selectedHari.add(input.value));
+    document.querySelectorAll('.filter-kategori:checked').forEach(input => selectedKategori.add(input.value));
+    document.querySelectorAll('.filter-kelompok:checked').forEach(input => selectedKelompok.add(input.value));
+}
+
+function populateFilterOptions() {
+    filterKelompokOptions.innerHTML = daftarKelompok.map(kelompok => `
+        <label class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-900 border border-gray-600 text-gray-200 text-xs font-semibold cursor-pointer hover:border-blue-500 transition">
+            <input type="checkbox" class="filter-kelompok accent-blue-500" value="${escapeHtml(kelompok)}">
+            <span>${escapeHtml(kelompok)}</span>
+        </label>
+    `).join('');
 }
 
 function getKategoriBadges(siswa) {
