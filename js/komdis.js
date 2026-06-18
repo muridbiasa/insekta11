@@ -23,6 +23,10 @@ const inputPassword = document.getElementById('input-password');
 const errorMsg = document.getElementById('error-msg');
 const gridCards = document.getElementById('grid-cards');
 const btnExport = document.getElementById('btn-export');
+const filterHari = document.getElementById('filter-hari');
+const filterKategori = document.getElementById('filter-kategori');
+const filterKelompok = document.getElementById('filter-kelompok');
+const inputSearchDashboard = document.getElementById('input-search-dashboard');
 const statSiswa = document.getElementById('stat-siswa');
 const statKejadian = document.getElementById('stat-kejadian');
 const modalDetail = document.getElementById('modal-detail');
@@ -32,6 +36,17 @@ const btnTutupDetail = document.getElementById('btn-tutup-detail');
 
 let allData = [];
 let currentFilter = "Semua";
+let currentKategori = "Semua";
+let currentKelompok = "Semua";
+let currentSearch = "";
+
+const KATEGORI_PELANGGARAN = [
+    "Atribut Tidak Lengkap",
+    "Terlambat",
+    "Rambut Panjang",
+    "Pelanggaran Khusus",
+    "Lain-lain"
+];
 
 // 1. Gatekeeper Logic
 btnLogin.addEventListener('click', () => {
@@ -73,18 +88,26 @@ function initDashboard() {
         gridCards.innerHTML = '<p class="text-red-400 col-span-full text-center py-10">Gagal memuat data. Periksa Firebase Rules atau koneksi.</p>';
     });
 
-    // Filter Listeners
-    document.querySelectorAll('.filter-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            document.querySelectorAll('.filter-btn').forEach(b => {
-                b.classList.remove('bg-blue-600');
-                b.classList.add('bg-gray-700');
-            });
-            e.target.classList.remove('bg-gray-700');
-            e.target.classList.add('bg-blue-600');
-            currentFilter = e.target.dataset.filter;
-            renderDashboard();
-        });
+    populateFilterOptions();
+
+    filterHari.addEventListener('change', (e) => {
+        currentFilter = e.target.value;
+        renderDashboard();
+    });
+
+    filterKategori.addEventListener('change', (e) => {
+        currentKategori = e.target.value;
+        renderDashboard();
+    });
+
+    filterKelompok.addEventListener('change', (e) => {
+        currentKelompok = e.target.value;
+        renderDashboard();
+    });
+
+    inputSearchDashboard.addEventListener('input', (e) => {
+        currentSearch = e.target.value.trim().toLowerCase();
+        renderDashboard();
     });
 
     btnExport.addEventListener('click', exportExcel);
@@ -98,25 +121,19 @@ function initDashboard() {
 function renderDashboard() {
     gridCards.innerHTML = '';
     
-    const filteredData = allData.filter(s => {
-        if (currentFilter === "Semua") return true;
-        const riwayat = s.riwayat || {};
-        return Object.values(riwayat).some(r => r.hari === currentFilter);
-    });
+    const filteredData = getFilteredData();
 
     // Update Stats
     statSiswa.textContent = filteredData.length;
     let totalKejadian = 0;
     filteredData.forEach(s => {
-        const riwayat = s.riwayat || {};
-        const kejadian = Object.values(riwayat).filter(r => currentFilter === "Semua" || r.hari === currentFilter);
-        totalKejadian += kejadian.length;
+        totalKejadian += getFilteredRiwayat(s).length;
     });
     statKejadian.textContent = totalKejadian;
 
     // EMPTY STATE
     if (filteredData.length === 0) {
-        gridCards.innerHTML = '<p class="text-gray-500 col-span-full text-center py-10">Belum ada data pelanggaran. Silakan input dari halaman Fasilitator.</p>';
+        gridCards.innerHTML = '<p class="text-gray-500 col-span-full text-center py-10">Belum ada data pelanggaran yang cocok dengan filter.</p>';
         return;
     }
 
@@ -131,8 +148,7 @@ function renderDashboard() {
             gridCards.appendChild(groupHeader);
 
             siswaDiKelompokIni.forEach(s => {
-                const riwayat = s.riwayat || {};
-                const kejadianCount = Object.values(riwayat).filter(r => currentFilter === "Semua" || r.hari === currentFilter).length;
+                const kejadianCount = getFilteredRiwayat(s).length;
                 
                 const card = document.createElement('div');
                 card.className = 'bg-gray-800 p-5 rounded-xl border border-gray-700 hover:border-red-500 transition cursor-pointer shadow-lg';
@@ -145,7 +161,7 @@ function renderDashboard() {
                         <span class="bg-red-500 text-white text-sm font-bold px-3 py-1 rounded-full">${kejadianCount}</span>
                     </div>
                     <div class="flex flex-wrap gap-2 mt-4">
-                        ${getKategoriBadges(s, currentFilter)}
+                        ${getKategoriBadges(s)}
                     </div>
                 `;
                 card.onclick = () => showDetail(s);
@@ -155,13 +171,44 @@ function renderDashboard() {
     });
 }
 
-function getKategoriBadges(siswa, filter) {
-    const riwayat = siswa.riwayat || {};
-    const kejadian = Object.values(riwayat).filter(r => filter === "Semua" || r.hari === filter);
+function getFilteredData() {
+    return allData.filter(siswa => {
+        const matchesHari = currentFilter === "Semua" || getFilteredRiwayat(siswa).length > 0;
+        const matchesKategori = currentKategori === "Semua" || getFilteredRiwayat(siswa).length > 0;
+        const matchesKelompok = currentKelompok === "Semua" || siswa.kelompok === currentKelompok;
+        const matchesNama = !currentSearch || siswa.nama_lengkap.toLowerCase().includes(currentSearch);
+        return matchesHari && matchesKategori && matchesKelompok && matchesNama;
+    });
+}
+
+function getFilteredRiwayat(siswa) {
+    return Object.values(siswa.riwayat || {}).filter(matchesRiwayatFilter);
+}
+
+function matchesRiwayatFilter(r) {
+    const matchesHari = currentFilter === "Semua" || r.hari === currentFilter;
+    const matchesKategori = currentKategori === "Semua" || (Array.isArray(r.kategori) && r.kategori.includes(currentKategori));
+    return matchesHari && matchesKategori;
+}
+
+function populateFilterOptions() {
+    filterKelompok.innerHTML = '<option value="Semua">Semua Kelompok</option>' + daftarKelompok.map(kelompok =>
+        `<option value="${escapeHtml(kelompok)}">${escapeHtml(kelompok)}</option>`
+    ).join('');
+
+    filterKategori.innerHTML = '<option value="Semua">Semua Kategori</option>' + KATEGORI_PELANGGARAN.map(kategori =>
+        `<option value="${escapeHtml(kategori)}">${escapeHtml(kategori)}</option>`
+    ).join('');
+}
+
+function getKategoriBadges(siswa) {
     const kategoriSet = new Set();
-    kejadian.forEach(k => k.kategori.forEach(cat => kategoriSet.add(cat)));
+    getFilteredRiwayat(siswa).forEach(r => {
+        if (!Array.isArray(r.kategori)) return;
+        r.kategori.forEach(cat => kategoriSet.add(cat));
+    });
     return Array.from(kategoriSet).map(cat => 
-        `<span class="bg-gray-700 text-gray-300 text-xs px-2 py-1 rounded">${cat}</span>`
+        `<span class="bg-gray-700 text-gray-300 text-xs px-2 py-1 rounded">${escapeHtml(cat)}</span>`
     ).join('');
 }
 
@@ -170,11 +217,9 @@ function showDetail(s) {
     detailNama.textContent = `${s.nama_lengkap} (${s.kelompok})`;
     detailTimeline.innerHTML = '';
     const riwayat = s.riwayat || {};
-    let riwayatArray = Object.entries(riwayat).map(([id, data]) => ({ id, ...data }));
-
-    if (currentFilter !== "Semua") {
-        riwayatArray = riwayatArray.filter(r => r.hari === currentFilter);
-    }
+    let riwayatArray = Object.entries(riwayat)
+        .map(([id, data]) => ({ id, ...data }))
+        .filter(matchesRiwayatFilter);
 
     // Sort by waktu_input descending (terbaru di atas)
     riwayatArray.sort((a, b) => new Date(b.waktu_input) - new Date(a.waktu_input));
@@ -186,16 +231,17 @@ function showDetail(s) {
             const item = document.createElement('div');
             item.className = 'bg-gray-900 p-4 rounded-lg border-l-4 border-red-500';
             const tgl = new Date(r.waktu_input).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+            const kategori = Array.isArray(r.kategori) ? r.kategori : [];
             item.innerHTML = `
                 <div class="flex justify-between items-center mb-2">
-                    <span class="font-bold text-blue-400">${r.hari}</span>
+                    <span class="font-bold text-blue-400">${escapeHtml(r.hari)}</span>
                     <span class="text-xs text-gray-500">${tgl}</span>
                 </div>
                 <div class="flex flex-wrap gap-2 mb-2">
-                    ${r.kategori.map(cat => `<span class="bg-red-900 text-red-200 text-xs px-2 py-1 rounded">${cat}</span>`).join('')}
+                    ${kategori.map(cat => `<span class="bg-red-900 text-red-200 text-xs px-2 py-1 rounded">${escapeHtml(cat)}</span>`).join('')}
                 </div>
-                <p class="text-sm text-gray-300 italic mb-2">"${r.komentar || 'Tidak ada komentar'}"</p>
-                <p class="text-xs text-gray-500">Dicatat oleh: ${r.fasilitator}</p>
+                <p class="text-sm text-gray-300 italic mb-2">"${escapeHtml(r.komentar || 'Tidak ada komentar')}"</p>
+                <p class="text-xs text-gray-500">Dicatat oleh: ${escapeHtml(r.fasilitator)}</p>
             `;
             detailTimeline.appendChild(item);
         });
@@ -205,7 +251,8 @@ function showDetail(s) {
 
 // 5. Export Excel
 function exportExcel() {
-    if (allData.length === 0) return alert('Tidak ada data untuk diekspor.');
+    const dataToExport = getFilteredData();
+    if (dataToExport.length === 0) return alert('Tidak ada data untuk diekspor.');
 
     const headers = [
         "No Absen",
@@ -217,8 +264,8 @@ function exportExcel() {
         "Pelanggaran Hari 3"
     ];
 
-    const rows = allData.map(siswa => {
-        const riwayat = Object.values(siswa.riwayat || {});
+    const rows = dataToExport.map(siswa => {
+        const riwayat = getFilteredRiwayat(siswa);
 
         return [
             { value: siswa.nomor_absen, style: 'text-align:center;mso-number-format:"\\@";' },
