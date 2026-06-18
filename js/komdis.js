@@ -87,7 +87,7 @@ function initDashboard() {
         });
     });
 
-    btnExport.addEventListener('click', exportCSV);
+    btnExport.addEventListener('click', exportExcel);
     btnTutupDetail.addEventListener('click', () => modalDetail.classList.remove('active'));
     modalDetail.addEventListener('click', (e) => {
         if (e.target === modalDetail) modalDetail.classList.remove('active');
@@ -203,34 +203,109 @@ function showDetail(s) {
     modalDetail.classList.add('active');
 }
 
-// 5. Export CSV
-function exportCSV() {
+// 5. Export Excel
+function exportExcel() {
     if (allData.length === 0) return alert('Tidak ada data untuk diekspor.');
-    const BOM = "\uFEFF"; // UTF-8 BOM agar karakter Indonesia terbaca di Excel
-    const headers = ["No Absen", "Nama Lengkap", "Kelompok", "Total Pelanggaran", "Pelanggaran Hari 1", "Pelanggaran Hari 2", "Pelanggaran Hari 3"];
 
-    const rows = allData.map(s => {
-        const riwayat = Object.values(s.riwayat || {});
-        
-        const h1 = riwayat.filter(r => r.hari === "Hari 1").map(r => r.kategori.join(' + ')).join(' | ');
-        const h2 = riwayat.filter(r => r.hari === "Hari 2").map(r => r.kategori.join(' + ')).join(' | ');
-        const h3 = riwayat.filter(r => r.hari === "Hari 3").map(r => r.kategori.join(' + ')).join(' | ');
-        
+    const headers = [
+        "No Absen",
+        "Nama Lengkap",
+        "Kelompok",
+        "Total Pelanggaran",
+        "Pelanggaran Hari 1",
+        "Pelanggaran Hari 2",
+        "Pelanggaran Hari 3"
+    ];
+
+    const rows = allData.map(siswa => {
+        const riwayat = Object.values(siswa.riwayat || {});
+
         return [
-            s.nomor_absen, 
-            s.nama_lengkap, 
-            s.kelompok, 
-            s.total_pelanggaran, 
-            h1, 
-            h2, 
-            h3
-        ].map(val => `"${String(val).replace(/"/g, '""')}"`).join(',');
+            { value: siswa.nomor_absen, style: 'text-align:center;mso-number-format:"\\@";' },
+            { value: siswa.nama_lengkap },
+            { value: siswa.kelompok, style: 'text-align:center;' },
+            { value: riwayat.length, style: 'text-align:center;font-weight:bold;' },
+            { value: formatRiwayatHari(riwayat, "Hari 1") },
+            { value: formatRiwayatHari(riwayat, "Hari 2") },
+            { value: formatRiwayatHari(riwayat, "Hari 3") }
+        ];
     });
 
-    const csvContent = BOM + headers.join(',') + '\n' + rows.join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const tableRows = rows.map(row => `
+        <tr>
+            ${row.map(cell => renderExcelCell(cell.value, cell.style)).join('')}
+        </tr>
+    `).join('');
+
+    const exportedAt = new Date().toLocaleString('id-ID', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+    const dateSlug = new Date().toISOString().split('T')[0];
+
+    const html = `<!DOCTYPE html>
+<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: Arial, sans-serif; color: #111827; }
+        h1 { margin: 0 0 4px; font-size: 18px; color: #1d4ed8; }
+        p { margin: 0 0 16px; font-size: 12px; color: #4b5563; }
+        table { border-collapse: collapse; width: 100%; }
+        th { background: #1d4ed8; color: #ffffff; font-weight: bold; border: 1px solid #93c5fd; padding: 10px 8px; text-align: left; }
+        td { border: 1px solid #cbd5e1; padding: 8px; vertical-align: top; }
+        tr:nth-child(even) td { background: #f9fafb; }
+    </style>
+</head>
+<body>
+    <h1>Rekap Pelanggaran INSEKTA 11</h1>
+    <p>Diekspor pada: ${escapeHtml(exportedAt)}</p>
+    <table>
+        <thead>
+            <tr>
+                ${headers.map(header => `<th>${escapeHtml(header)}</th>`).join('')}
+            </tr>
+        </thead>
+        <tbody>
+            ${tableRows}
+        </tbody>
+    </table>
+</body>
+</html>`;
+
+    const blob = new Blob(["\uFEFF", html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = `Rekap_Pelanggaran_INSEKTA11_${new Date().toISOString().split('T')[0]}.csv`;
+    link.download = `Rekap_Pelanggaran_INSEKTA11_${dateSlug}.xls`;
+    document.body.appendChild(link);
     link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(link.href);
+}
+
+function formatRiwayatHari(riwayat, hari) {
+    const items = riwayat
+        .filter(r => r.hari === hari)
+        .map(r => {
+            const kategori = Array.isArray(r.kategori) && r.kategori.length > 0 ? r.kategori.join(' + ') : 'Tidak ada kategori';
+            const komentar = r.komentar ? ` - ${r.komentar}` : '';
+            return `${kategori}${komentar}`;
+        });
+
+    return items.length > 0 ? items.join(' | ') : '—';
+}
+
+function renderExcelCell(value, extraStyle = '') {
+    return `<td style="border:1px solid #cbd5e1;padding:8px;vertical-align:top;${extraStyle}">${escapeHtml(value)}</td>`;
+}
+
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
 }
