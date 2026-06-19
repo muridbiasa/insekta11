@@ -170,7 +170,7 @@ function renderDashboard() {
         }
     });
 }
-
+//mengambil data dan mencocokan dengan filter
 function getFilteredData() {
     return allData.filter(siswa => {
         const riwayatSiswa = getFilteredRiwayat(siswa);
@@ -191,7 +191,7 @@ function matchesRiwayatFilter(r) {
     const matchesKategori = selectedKategori.size === 0 || (Array.isArray(r.kategori) && r.kategori.some(cat => selectedKategori.has(cat)));
     return matchesHari && matchesKategori;
 }
-
+//checker logic
 function updateSelectedFilters() {
     selectedHari.clear();
     selectedKategori.clear();
@@ -249,7 +249,7 @@ function showDetail(s) {
 
     // Sort by waktu_input descending (terbaru di atas)
     riwayatArray.sort((a, b) => new Date(b.waktu_input) - new Date(a.waktu_input));
-
+//Revoke button and History Ui
     if (riwayatArray.length === 0) {
         detailTimeline.innerHTML = '<p class="text-gray-500 text-center">Tidak ada riwayat.</p>';
     } else {
@@ -279,7 +279,7 @@ function showDetail(s) {
     }
     modalDetail.classList.add('active');
 }
-
+//function modal revoke
 function handleTimelineClick(e) {
     const revokeButton = e.target.closest('.revoke-btn');
     if (!revokeButton) return;
@@ -311,6 +311,7 @@ async function confirmRevokePelanggaran() {
         return;
     }
 
+//Hapus pelanggaran dari database via remove docref
     const totalPelanggaran = Number(siswa.total_pelanggaran || 0);
     const docRef = doc(db, "rekap_pelanggaran", siswaId);
 
