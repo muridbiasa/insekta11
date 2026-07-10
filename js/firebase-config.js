@@ -18,16 +18,55 @@ const defaultFirebaseConfig = {
   appId: "YOUR_FIREBASE_APP_ID" // MASUKKAN APP ID DI SINI
 };
 
-// Gunakan window.firebaseConfig jika tersedia, jika tidak gunakan default di atas
-const firebaseConfig = window.firebaseConfig || defaultFirebaseConfig;
+// Gunakan window.firebaseConfig jika tersedia, jika tidak gunakan null agar bisa dicoba fetch/import
+let firebaseConfig = window.firebaseConfig || null;
+
+// 1. Coba import secara dinamis dari js/firebase-env.js jika ada
+if (!firebaseConfig) {
+  try {
+    const envMod = await import('./firebase-env.js');
+    if (envMod && envMod.firebaseConfig) {
+      firebaseConfig = envMod.firebaseConfig;
+      console.log("[INSEKTA 11] Menggunakan konfigurasi dari js/firebase-env.js");
+    }
+  } catch (e) {
+    // Abaikan jika file tidak ada atau error
+  }
+}
+
+// 2. Jika config masih kosong atau masih berupa placeholder, ambil secara dinamis dari API /api/firebase-env (.env Vercel / Netlify / Local Server)
+if (!firebaseConfig || firebaseConfig.apiKey === "YOUR_FIREBASE_API_KEY" || firebaseConfig.apiKey === "YOUR_API_KEY") {
+  try {
+    const res = await fetch('/api/firebase-env');
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.apiKey) {
+        firebaseConfig = data;
+        console.log("[INSEKTA 11] Berhasil mengambil konfigurasi Firebase dari .env via /api/firebase-env");
+      } else if (data && data.error) {
+        console.warn("[INSEKTA 11] Endpoint /api/firebase-env mengembalikan error:", data.error, data.missing);
+      }
+    } else {
+      console.warn("[INSEKTA 11] Endpoint /api/firebase-env merespon dengan status:", res.status);
+    }
+  } catch (e) {
+    console.warn("[INSEKTA 11] Gagal mengambil konfigurasi dari /api/firebase-env:", e);
+  }
+}
+
+// 3. Fallback ke default jika tidak berhasil dimuat dari mana pun
+if (!firebaseConfig) {
+  firebaseConfig = defaultFirebaseConfig;
+}
 
 // Validasi sederhana sebelum inisialisasi
-if (!firebaseConfig || firebaseConfig.apiKey === "YOUR_FIREBASE_API_KEY") {
+if (!firebaseConfig || firebaseConfig.apiKey === "YOUR_FIREBASE_API_KEY" || firebaseConfig.apiKey === "YOUR_API_KEY") {
   console.warn(
     "[INSEKTA 11] Firebase API Key belum diisi atau masih menggunakan placeholder. " +
-    "Silakan isi kredensial Firebase Anda di js/firebase-config.js atau definisikan window.firebaseConfig."
+    "Silakan isi kredensial Firebase Anda di Vercel/Netlify Environment Variables atau definisikan di js/firebase-config.js."
   );
 }
 
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
+
