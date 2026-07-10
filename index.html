@@ -104,6 +104,9 @@
                 <option value="Hari 1">Hari 1</option>
                 <option value="Hari 2">Hari 2</option>
                 <option value="Hari 3">Hari 3</option>
+                <option value="Hari 4">Hari 4</option>
+                <option value="Hari 5">Hari 5</option>
+                <option value="Hari 6">Hari 6</option>
               </select>
               <i data-lucide="chevron-down" class="w-4 h-4 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-500"></i>
             </div>
@@ -292,11 +295,15 @@
 
   // ── KATEGORI PELANGGARAN ──────────────────────────────────────
   const KATEGORI = [
-    { id: 'atribut',   label: 'Atribut Tidak Lengkap', icon: 'shirt',          color: 'orange' },
-    { id: 'terlambat', label: 'Terlambat',              icon: 'clock',          color: 'yellow' },
-    { id: 'rambut',    label: 'Rambut Panjang',         icon: 'scissors',       color: 'purple' },
-    { id: 'khusus',    label: 'Pelanggaran Khusus',     icon: 'alert-triangle', color: 'red'    },
-    { id: 'lainnya',   label: 'Lain-lain',              icon: 'more-horizontal',color: 'blue'   }
+    { id: 'atribut',          label: 'Atribut Tidak Lengkap',                                  icon: 'shirt',              color: 'orange' },
+    { id: 'terlambat',        label: 'Terlambat',                                               icon: 'clock',              color: 'yellow' },
+    { id: 'benda_terlarang',  label: 'Benda terlarang',                                        icon: 'ban',                color: 'red' },
+    { id: 'kerapian',         label: 'Kerapian(kuku panjang, rambut bewarna/ panjang dll)',    displayName: 'Kerapian', desc: 'Kuku panjang, rambut berwarna/ panjang dll.', icon: 'scissors', color: 'purple' },
+    { id: 'makeup',           label: 'Memakai make up',                                        icon: 'brush',              color: 'pink' },
+    { id: 'kasar',            label: 'Berkata kasar',                                          icon: 'volume-x',           color: 'amber' },
+    { id: 'perilaku_buruk',   label: 'Berperilaku buruk (tidur, jahil, main HP)',              displayName: 'Berperilaku buruk', desc: 'Tidur, jahil, main HP', icon: 'frown', color: 'orange' },
+    { id: 'khusus',           label: 'Pelanggaran Khusus',                                      icon: 'alert-triangle',     color: 'red' },
+    { id: 'lainnya',          label: 'Lain-lain (bersifat sulit ditangani sendiri)',           displayName: 'Lain-lain', desc: 'Bersifat sulit ditangani sendiri', icon: 'more-horizontal', color: 'blue' }
   ];
 
   // ── STATE ─────────────────────────────────────────────────────
@@ -488,12 +495,20 @@
       const checked = state.selectedKategori.has(k.id);
       const item = document.createElement('label');
       item.className = `custom-check flex items-center gap-3 bg-[#0a0a0a] border border-neutral-800 rounded-xl px-4 py-3 ${checked ? 'selected' : ''}`;
+      
+      const contentHTML = k.displayName 
+        ? `<div class="flex-1 min-w-0">
+             <span class="text-sm font-medium text-neutral-200 block">${k.displayName}</span>
+             <span class="text-[11px] text-neutral-500 font-normal block mt-0.5">${k.desc}</span>
+           </div>`
+        : `<span class="flex-1 text-sm font-medium text-neutral-200">${k.label}</span>`;
+
       item.innerHTML = `
         <input type="checkbox" ${checked ? 'checked' : ''} data-id="${k.id}">
         <div class="w-9 h-9 rounded-lg bg-${k.color}-500/10 border border-${k.color}-500/20 flex items-center justify-center flex-shrink-0">
           <i data-lucide="${k.icon}" class="w-4 h-4 text-${k.color}-400"></i>
         </div>
-        <span class="flex-1 text-sm font-medium">${k.label}</span>
+        ${contentHTML}
         <div class="checkmark"><i data-lucide="check" class="w-3.5 h-3.5 text-white"></i></div>`;
       item.querySelector('input').addEventListener('change', (e) => {
         if (e.target.checked) state.selectedKategori.add(k.id);

@@ -383,7 +383,10 @@ function exportExcel() {
         "Total Pelanggaran",
         "Pelanggaran Hari 1",
         "Pelanggaran Hari 2",
-        "Pelanggaran Hari 3"
+        "Pelanggaran Hari 3",
+        "Pelanggaran Hari 4",
+        "Pelanggaran Hari 5",
+        "Pelanggaran Hari 6"
     ];
 
     const rows = dataToExport.map(siswa => {
@@ -396,7 +399,10 @@ function exportExcel() {
             { value: riwayat.length, style: 'text-align:center;font-weight:bold;' },
             { value: formatRiwayatHari(riwayat, "Hari 1") },
             { value: formatRiwayatHari(riwayat, "Hari 2") },
-            { value: formatRiwayatHari(riwayat, "Hari 3") }
+            { value: formatRiwayatHari(riwayat, "Hari 3") },
+            { value: formatRiwayatHari(riwayat, "Hari 4") },
+            { value: formatRiwayatHari(riwayat, "Hari 5") },
+            { value: formatRiwayatHari(riwayat, "Hari 6") }
         ];
     });
 
