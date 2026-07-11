@@ -38,8 +38,9 @@ export const daftarSiswa = [
   { id: "KLP_A_29", doc_id: "KLP_A_29", nomor_absen: "29", nama_lengkap: "Widjayanti Andayananing Kusumo H.", kelompok: "KELOMPOK A" },
   { id: "KLP_A_30", doc_id: "KLP_A_30", nomor_absen: "30", nama_lengkap: "Xian Ratna Gemilang", kelompok: "KELOMPOK A" },
   { id: "KLP_A_31", doc_id: "KLP_A_31", nomor_absen: "31", nama_lengkap: "Zheysa Martharich Zellia Putri", kelompok: "KELOMPOK A" },
+  { id: "KLP_A_32", doc_id: "KLP_A_32", nomor_absen: "32", nama_lengkap: "Veronica Kimberly Suyanto", kelompok: "KELOMPOK A" },
 
-  // ==================== KELOMPOK B (32 Siswa) ====================
+  // ==================== KELOMPOK B (31 Siswa) ====================
   { id: "KLP_B_01", doc_id: "KLP_B_01", nomor_absen: "01", nama_lengkap: "Adrianus Radhitya Pramata Rahagi", kelompok: "KELOMPOK B" },
   { id: "KLP_B_02", doc_id: "KLP_B_02", nomor_absen: "02", nama_lengkap: "Aileen Bellvania Hadisuryo", kelompok: "KELOMPOK B" },
   { id: "KLP_B_03", doc_id: "KLP_B_03", nomor_absen: "03", nama_lengkap: "Aloysius Banyu Bening", kelompok: "KELOMPOK B" },
@@ -71,7 +72,6 @@ export const daftarSiswa = [
   { id: "KLP_B_29", doc_id: "KLP_B_29", nomor_absen: "29", nama_lengkap: "Samuel Evan Jatmiko", kelompok: "KELOMPOK B" },
   { id: "KLP_B_30", doc_id: "KLP_B_30", nomor_absen: "30", nama_lengkap: "Stephanie Adiska Karunia", kelompok: "KELOMPOK B" },
   { id: "KLP_B_31", doc_id: "KLP_B_31", nomor_absen: "31", nama_lengkap: "Stevanus Alvino Diandra Putra", kelompok: "KELOMPOK B" },
-  { id: "KLP_B_32", doc_id: "KLP_B_32", nomor_absen: "32", nama_lengkap: "Veronica Kimberly Suyanto", kelompok: "KELOMPOK B" },
 
   // ==================== KELOMPOK C (31 Siswa) ====================
   { id: "KLP_C_01", doc_id: "KLP_C_01", nomor_absen: "01", nama_lengkap: "Akio Keitaro", kelompok: "KELOMPOK C" },
