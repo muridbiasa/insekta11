@@ -1,0 +1,33 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Secara default, tolak semua akses ke koleksi yang tidak didefinisikan secara eksplisit
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Aturan aman dan optimal khusus untuk koleksi 'rekap_pelanggaran'
+    match /rekap_pelanggaran/{siswaId} {
+      // Mengizinkan baca (read/get/list) agar dashboard dan fitur riwayat bisa memuat data
+      allow read: if true;
+      
+      // Validasi ketat saat membuat rekap baru (setDoc)
+      allow create: if request.resource.data.nama_lengkap is string
+                    && request.resource.data.kelompok is string
+                    && request.resource.data.nomor_absen is string
+                    && request.resource.data.total_pelanggaran is int
+                    && request.resource.data.total_pelanggaran == 1
+                    && request.resource.data.riwayat is map;
+
+      // Validasi ketat saat mengupdate pelanggaran (updateDoc / tambah / hapus riwayat)
+      allow update: if request.resource.data.nama_lengkap == resource.data.nama_lengkap
+                    && request.resource.data.kelompok == resource.data.kelompok
+                    && request.resource.data.nomor_absen == resource.data.nomor_absen
+                    && request.resource.data.total_pelanggaran is int
+                    && request.resource.data.riwayat is map;
+
+      // Mengizinkan hapus dokumen sepenuhnya (deleteDoc) ketika pelanggaran siswa sudah 0/habis
+      allow delete: if true;
+    }
+  }
+}

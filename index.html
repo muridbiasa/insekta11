@@ -281,7 +281,7 @@
   import { daftarSiswa } from './js/data-siswa.js';
   import { db } from './js/firebase-config.js';
   import {
-    doc, setDoc, getDoc, updateDoc, increment, deleteField
+    doc, setDoc, getDoc, updateDoc, increment, deleteField, deleteDoc
   } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
   // ── ADAPTER: flat array → object map ─────────────────────────
@@ -656,10 +656,44 @@
     if (!confirm('Yakin ingin menghapus pelanggaran ini dari Firebase?')) return;
     try {
       const docRef = doc(db, "rekap_pelanggaran", docId);
-      await updateDoc(docRef, {
-        [`riwayat.${kejadianId}`]: deleteField(),
-        total_pelanggaran: increment(-1)
-      });
+      const docSnap = await getDoc(docRef);
+
+      if (!docSnap.exists()) {
+        // Dokumen sudah dihapus di Firebase (misal oleh dashboard Komdis)
+        let riwayatLokal = JSON.parse(localStorage.getItem('riwayat_input') || '[]');
+        riwayatLokal.splice(lokalIndex, 1);
+        localStorage.setItem('riwayat_input', JSON.stringify(riwayatLokal));
+        showRiwayat(); // refresh modal
+        showToast('Data sudah terhapus di server, riwayat lokal dibersihkan');
+        return;
+      }
+
+      const data = docSnap.data();
+      const hasKejadian = data.riwayat && data.riwayat[kejadianId];
+
+      if (!hasKejadian) {
+        // Kejadian ini sudah dihapus di Firebase oleh admin lain / dashboard Komdis
+        let riwayatLokal = JSON.parse(localStorage.getItem('riwayat_input') || '[]');
+        riwayatLokal.splice(lokalIndex, 1);
+        localStorage.setItem('riwayat_input', JSON.stringify(riwayatLokal));
+        showRiwayat(); // refresh modal
+        showToast('Kejadian sudah terhapus di server, riwayat lokal dibersihkan');
+        return;
+      }
+
+      // Jika kejadian ada, lakukan penghapusan sesungguhnya
+      const totalPelanggaran = Number(data.total_pelanggaran || 0);
+      const riwayatKeys = Object.keys(data.riwayat || {});
+
+      if (totalPelanggaran <= 1 || riwayatKeys.length <= 1) {
+        await deleteDoc(docRef);
+      } else {
+        await updateDoc(docRef, {
+          [`riwayat.${kejadianId}`]: deleteField(),
+          total_pelanggaran: increment(-1)
+        });
+      }
+
       let riwayatLokal = JSON.parse(localStorage.getItem('riwayat_input') || '[]');
       riwayatLokal.splice(lokalIndex, 1);
       localStorage.setItem('riwayat_input', JSON.stringify(riwayatLokal));
@@ -667,7 +701,7 @@
       showToast('Data berhasil dihapus');
     } catch (error) {
       console.error('[Firestore] Delete error:', error);
-      showToast('Gagal menghapus data', true);
+      showToast('Gagal menghapus data: ' + error.message, true);
     }
   }
 
