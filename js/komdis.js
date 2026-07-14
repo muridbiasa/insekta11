@@ -406,6 +406,12 @@ function exportExcel() {
         ];
     });
 
+    const tableRows = rows.map(row => `
+        <tr>
+            ${row.map(cell => renderExcelCell(cell.value, cell.style)).join('')}
+        </tr>
+    `).join('');
+
     const exportedAt = new Date().toLocaleString('id-ID', {
         day: '2-digit',
         month: 'short',
@@ -415,51 +421,44 @@ function exportExcel() {
     });
     const dateSlug = new Date().toISOString().split('T')[0];
 
-    // Menggunakan library SheetJS (XLSX) yang sudah di-load lewat CDN di dashboard.html
-    const XLSX = window.XLSX;
-    if (!XLSX) {
-        alert("Library Excel (SheetJS) belum siap. Silakan coba lagi dalam beberapa saat.");
-        return;
-    }
+    const html = `<!DOCTYPE html>
+<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: Arial, sans-serif; color: #111827; }
+        h1 { margin: 0 0 4px; font-size: 18px; color: #1d4ed8; }
+        p { margin: 0 0 16px; font-size: 12px; color: #4b5563; }
+        table { border-collapse: collapse; width: 100%; }
+        th { background: #1d4ed8; color: #ffffff; font-weight: bold; border: 1px solid #93c5fd; padding: 10px 8px; text-align: left; }
+        td { border: 1px solid #cbd5e1; padding: 8px; vertical-align: top; }
+        tr:nth-child(even) td { background: #f9fafb; }
+    </style>
+</head>
+<body>
+    <h1>Rekap Pelanggaran INSEKTA 11</h1>
+    <p>Diekspor pada: ${escapeHtml(exportedAt)}</p>
+    <table>
+        <thead>
+            <tr>
+                ${headers.map(header => `<th>${escapeHtml(header)}</th>`).join('')}
+            </tr>
+        </thead>
+        <tbody>
+            ${tableRows}
+        </tbody>
+    </table>
+</body>
+</html>`;
 
-    // Bangun susunan data untuk Worksheet
-    const aoa = [
-        ["Rekap Pelanggaran INSEKTA 11"],
-        [`Diekspor pada: ${exportedAt}`],
-        [], // Baris kosong sebagai pembatas
-        headers, // Baris header tabel
-        ...rows.map(row => row.map(cell => cell.value)) // Baris data
-    ];
-
-    const ws = XLSX.utils.aoa_to_sheet(aoa);
-
-    // Set tipe data No Absen menjadi String ('s') agar nomor absen (seperti "01", "02") tidak kehilangan nol di depan
-    for (let r = 0; r < rows.length; r++) {
-        const cellAddress = `A${r + 5}`; // Baris data dimulai dari index ke-5 (1-based: baris 5)
-        if (ws[cellAddress]) {
-            ws[cellAddress].t = 's';
-        }
-    }
-
-    // Atur lebar kolom secara dinamis agar pas dengan kontennya
-    const colWidths = headers.map((header, colIndex) => {
-        let maxLen = header.length;
-        rows.forEach(row => {
-            const val = String(row[colIndex]?.value ?? '');
-            if (val.length > maxLen) {
-                maxLen = val.length;
-            }
-        });
-        return { wch: Math.min(Math.max(maxLen + 3, 10), 50) };
-    });
-    ws['!cols'] = colWidths;
-
-    // Buat workbook baru dan lampirkan worksheet
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Rekap Pelanggaran");
-
-    // Unduh file secara instan sebagai berkas XLSX asli (native binary)
-    XLSX.writeFile(wb, `Rekap_Pelanggaran_INSEKTA11_${dateSlug}.xlsx`);
+    const blob = new Blob(["\uFEFF", html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `Rekap_Pelanggaran_INSEKTA11_${dateSlug}.xls`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(link.href);
 }
 
 function formatRiwayatHari(riwayat, hari) {
